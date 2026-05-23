@@ -1,0 +1,21 @@
+# Secrets
+.env
+config/token.pickle
+config/client_secrets.json
+
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Data
+data/
+logs/
+
+# PyCharm
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

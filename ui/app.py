@@ -1,0 +1,342 @@
+import json
+import os
+import asyncio
+import threading
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.requests import Request
+from fastapi.responses import HTMLResponse, JSONResponse
+
+app = FastAPI(title="BeyoondBoundariess Agent System")
+
+app.mount("/static", StaticFiles(directory="ui/static"), name="static")
+templates = Jinja2Templates(directory="ui/templates")
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def load_json(path):
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return None
+
+
+def run_agent_in_thread(agent_id):
+    if agent_id == "3":
+        from agents.agent3_analytics import run_agent3
+        run_agent3()
+    elif agent_id == "1":
+        from agents.agent1_creative import run_agent1_auto
+        run_agent1_auto()
+    elif agent_id == "2":
+        from agents.agent2_designer import run_agent2_auto
+        run_agent2_auto()
+    elif agent_id == "4":
+        from agents.agent4_reporter import run_agent4
+        run_agent4()
+    elif agent_id == "5":
+        from agents.agent5_publisher import run_agent5
+        run_agent5()
+
+
+# ── Pages ─────────────────────────────────────────────────────────────────────
+
+@app.get("/", response_class=HTMLResponse)
+async def dashboard(request: Request):
+    analytics  = load_json("data/analytics_brief.json")
+    ideas      = load_json("data/content_ideas.json")
+    raw_thumbs = load_json("data/thumbnail_ideas.json")
+
+    thumbnails = None
+    if raw_thumbs:
+        thumb_list = raw_thumbs.get("thumbnails", [])
+        if isinstance(thumb_list, dict):
+            thumb_list = thumb_list.get("thumbnails", [])
+        thumbnails = {
+            "generated_at": raw_thumbs.get("generated_at", ""),
+            "thumbnails"  : thumb_list
+        }
+
+    return templates.TemplateResponse(
+        request = request,
+        name    = "dashboard.html",
+        context = {
+            "analytics" : analytics,
+            "ideas"     : ideas,
+            "thumbnails": thumbnails
+        }
+    )
+
+
+# ── API Endpoints ─────────────────────────────────────────────────────────────
+
+@app.get("/api/analytics")
+async def get_analytics():
+    data = load_json("data/analytics_brief.json")
+    if data:
+        return JSONResponse(content=data)
+    return JSONResponse(
+        content     = {"error": "No analytics data found"},
+        status_code = 404
+    )
+
+
+@app.get("/api/ideas")
+async def get_ideas():
+    data = load_json("data/content_ideas.json")
+    if data:
+        return JSONResponse(content=data)
+    return JSONResponse(
+        content     = {"error": "No content ideas found"},
+        status_code = 404
+    )
+
+
+@app.get("/api/thumbnails")
+async def get_thumbnails():
+    data = load_json("data/thumbnail_ideas.json")
+    if data:
+        return JSONResponse(content=data)
+    return JSONResponse(
+        content     = {"error": "No thumbnail ideas found"},
+        status_code = 404
+    )
+
+
+@app.get("/api/report")
+async def get_report():
+    path = "data/weekly_report.html"
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    return HTMLResponse(
+        content = "<p style='padding:20px;font-family:sans-serif;color:#64748b'>"
+                  "No report generated yet. Run Agent 4 first.</p>"
+    )
+
+
+# ── Run Agent via HTTP POST ───────────────────────────────────────────────────
+
+@app.post("/api/run-agent/{agent_id}")
+async def run_agent_http(agent_id: str):
+    try:
+        result = {"done": False, "error": None}
+
+        def thread_target():
+            try:
+                run_agent_in_thread(agent_id)
+                result["done"] = True
+            except Exception as e:
+                import traceback
+                result["error"] = traceback.format_exc()
+                print("THREAD ERROR:\n", traceback.format_exc())
+
+        thread = threading.Thread(target=thread_target)
+        thread.start()
+        thread.join(timeout=300)
+
+        if result["error"]:
+            return JSONResponse(content={
+                "status": "error",
+                "detail": result["error"]
+            })
+        return JSONResponse(content={
+            "status" : "success",
+            "agent"  : agent_id,
+            "message": f"Agent {agent_id} completed successfully!"
+        })
+
+    except Exception as e:
+        import traceback
+        return JSONResponse(content={
+            "status": "error",
+            "detail": traceback.format_exc()
+        })
+
+
+# ── Test Endpoint ─────────────────────────────────────────────────────────────
+
+@app.get("/api/test-agent/{agent_id}")
+async def test_agent(agent_id: str):
+    try:
+        result = {"done": False, "error": None}
+
+        def thread_target():
+            try:
+                run_agent_in_thread(agent_id)
+                result["done"] = True
+            except Exception as e:
+                import traceback
+                result["error"] = traceback.format_exc()
+                print("THREAD ERROR:\n", traceback.format_exc())
+
+        thread = threading.Thread(target=thread_target)
+        thread.start()
+        thread.join(timeout=300)
+
+        if result["error"]:
+            return JSONResponse(content={
+                "status": "error",
+                "detail": result["error"]
+            })
+        return JSONResponse(content={
+            "status" : "success",
+            "agent"  : agent_id,
+            "message": f"Agent {agent_id} completed successfully"
+        })
+
+    except Exception as e:
+        import traceback
+        return JSONResponse(content={
+            "status": "error",
+            "detail": traceback.format_exc()
+        })
+
+
+# ── WebSocket Agent Runner ────────────────────────────────────────────────────
+
+@app.websocket("/ws/agent/{agent_id}")
+async def run_agent_ws(websocket: WebSocket, agent_id: str):
+    await websocket.accept()
+    try:
+        await websocket.send_text(f"Starting Agent {agent_id}...")
+
+        result = {"done": False, "error": None}
+
+        def thread_target():
+            try:
+                run_agent_in_thread(agent_id)
+                result["done"] = True
+            except Exception as e:
+                import traceback
+                result["error"] = traceback.format_exc()
+                print("THREAD ERROR:\n", traceback.format_exc())
+
+        thread = threading.Thread(target=thread_target)
+        thread.start()
+
+        while thread.is_alive():
+            await asyncio.sleep(2)
+            try:
+                await websocket.send_text(f"Agent {agent_id} still running...")
+            except Exception:
+                break
+
+        thread.join()
+
+        if result["error"]:
+            await websocket.send_text(f"ERROR::{result['error']}")
+        else:
+            await websocket.send_text(f"DONE::Agent {agent_id} completed successfully!")
+
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        import traceback
+        print("WS ERROR:\n", traceback.format_exc())
+        await websocket.send_text(f"ERROR::{str(e)}")
+
+#---hand-off----
+
+@app.post("/api/handoff/agent1-to-agent2")
+async def handoff_to_agent2(request: Request):
+    try:
+        # Load latest content ideas from Agent 1
+        ideas = load_json("data/content_ideas.json")
+        if not ideas:
+            return JSONResponse(content={
+                "error": "No content ideas found. Run Agent 1 first."
+            })
+
+        # Build a handoff message for Agent 2
+        plan     = ideas.get("content_plan", {})
+        videos   = plan.get("video_ideas",  [])
+        shorts   = plan.get("short_ideas",  [])
+        strategy = plan.get("weekly_strategy", "")
+
+        video_list = "\n".join([
+            f"{i+1}. {v['title']}" for i, v in enumerate(videos[:5])
+        ])
+        short_list = "\n".join([
+            f"{i+1}. {s['title']}" for i, s in enumerate(shorts[:5])
+        ])
+
+        handoff_message = f"""Agent 1 has finalized the content plan. Here are the approved ideas:
+
+VIDEO IDEAS:
+{video_list}
+
+SHORT IDEAS:
+{short_list}
+
+WEEKLY STRATEGY:
+{strategy}
+
+Please generate detailed thumbnail concepts for each of these videos and shorts. Focus on making them bold, high CTR, and optimized for Tamil cricket fans on mobile."""
+
+        # Send to Agent 2
+        from agents.agent2_designer import (
+            chat_with_designer,
+            build_system_prompt
+        )
+
+        system_prompt = build_system_prompt()
+        reply         = chat_with_designer(system_prompt, handoff_message)
+
+        return JSONResponse(content={
+            "status" : "success",
+            "reply"  : reply,
+            "message": "Content plan sent to Agent 2 successfully!"
+        })
+
+    except Exception as e:
+        import traceback
+        return JSONResponse(content={
+            "error": traceback.format_exc()
+        })
+
+# ── Chat Endpoints ────────────────────────────────────────────────────────────
+
+@app.post("/api/chat/agent1")
+async def chat_agent1(request: Request):
+    body    = await request.json()
+    message = body.get("message", "")
+
+    from agents.agent1_creative import (
+        chat_with_agent1,
+        build_system_prompt,
+        load_analytics_brief,
+        try_parse_ideas,
+        save_content_ideas
+    )
+
+    brief = load_analytics_brief()
+    if not brief:
+        return JSONResponse(content={"error": "Run Agent 3 first"})
+
+    system_prompt = build_system_prompt(brief)
+    reply         = chat_with_agent1(system_prompt, message)
+
+    ideas = try_parse_ideas(reply)
+    if ideas:
+        save_content_ideas(ideas)
+
+    return JSONResponse(content={"reply": reply})
+
+
+@app.post("/api/chat/agent2")
+async def chat_agent2(request: Request):
+    body    = await request.json()
+    message = body.get("message", "")
+
+    from agents.agent2_designer import (
+        chat_with_designer,
+        build_system_prompt
+    )
+
+    system_prompt = build_system_prompt()
+    reply         = chat_with_designer(system_prompt, message)
+
+    return JSONResponse(content={"reply": reply})

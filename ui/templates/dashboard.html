@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BeyoondBoundariess — Agent Dashboard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-icon">🏏</div>
+            <div class="brand-text">
+                <div class="brand-name">BeyoondBoundariess</div>
+                <div class="brand-sub">AI Agent System</div>
+            </div>
+        </div>
+        <nav class="nav">
+            <a href="#dashboard"  class="nav-item active" onclick="showSection('dashboard', this)">
+                <span class="nav-icon">📊</span> Dashboard
+            </a>
+            <a href="#agents"     class="nav-item" onclick="showSection('agents', this)">
+                <span class="nav-icon">🤖</span> Run Agents
+            </a>
+            <a href="#content"    class="nav-item" onclick="showSection('content', this)">
+                <span class="nav-icon">💡</span> Content Plan
+            </a>
+            <a href="#thumbnails" class="nav-item" onclick="showSection('thumbnails', this)">
+                <span class="nav-icon">🎨</span> Thumbnails
+            </a>
+            <a href="#report"     class="nav-item" onclick="showSection('report', this)">
+                <span class="nav-icon">📧</span> Weekly Report
+            </a>
+            <a href="#publisher"  class="nav-item" onclick="showSection('publisher', this)">
+                <span class="nav-icon">⬆️</span> Publisher
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="status-dot"></div>
+            <span>System Online</span>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main">
+
+        <!-- ── DASHBOARD ── -->
+        <section id="dashboard" class="section active">
+            <div class="page-header">
+                <h1>Dashboard</h1>
+                <div class="header-sub">Channel overview & performance</div>
+            </div>
+
+            {% if analytics %}
+            {% set stats  = analytics.channel_stats %}
+            {% set period = analytics.period_stats %}
+            {% set last7  = period.last_7_days %}
+            {% set last30 = period.last_30_days %}
+
+            <!-- Milestone -->
+            <div class="milestone-card">
+                <div class="milestone-header">
+                    <span>🎯 Subscriber Milestone</span>
+                    <span class="milestone-count">{{ stats.subscribers }} / 1000</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: {{ (stats.subscribers / 1000 * 100) | round }}%"></div>
+                </div>
+                <div class="milestone-footer">
+                    {{ (stats.subscribers / 1000 * 100) | round }}% to goal —
+                    {{ 1000 - stats.subscribers }} subscribers to go!
+                </div>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">👥</div>
+                    <div class="stat-value">{{ stats.subscribers }}</div>
+                    <div class="stat-label">Subscribers</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">👁️</div>
+                    <div class="stat-value">{{ "{:,}".format(stats.total_views) }}</div>
+                    <div class="stat-label">Total Views</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🎬</div>
+                    <div class="stat-value">{{ stats.total_videos }}</div>
+                    <div class="stat-label">Total Videos</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">💬</div>
+                    <div class="stat-value">{{ analytics.comment_analysis.positive_pct }}%</div>
+                    <div class="stat-label">Positive Sentiment</div>
+                </div>
+            </div>
+
+            <!-- Period Stats -->
+            <div class="period-grid">
+                <div class="period-card">
+                    <div class="period-title">📅 Last 7 Days</div>
+                    <div class="period-dates">{{ last7.from_date }} → {{ last7.to_date }}</div>
+                    <div class="period-stats">
+                        <div class="period-stat">
+                            <div class="ps-value">{{ "{:,}".format(last7.views) }}</div>
+                            <div class="ps-label">Views</div>
+                        </div>
+                        <div class="period-stat">
+                            <div class="ps-value">{{ last7.watch_hours }}h</div>
+                            <div class="ps-label">Watch Time</div>
+                        </div>
+                        <div class="period-stat">
+                            <div class="ps-value green">+{{ last7.subs_gained }}</div>
+                            <div class="ps-label">Subs Gained</div>
+                        </div>
+                        <div class="period-stat">
+                            <div class="ps-value">{{ last7.net_subs }}</div>
+                            <div class="ps-label">Net Subs</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="period-card">
+                    <div class="period-title">📅 Last 30 Days</div>
+                    <div class="period-dates">{{ last30.from_date }} → {{ last30.to_date }}</div>
+                    <div class="period-stats">
+                        <div class="period-stat">
+                            <div class="ps-value">{{ "{:,}".format(last30.views) }}</div>
+                            <div class="ps-label">Views</div>
+                        </div>
+                        <div class="period-stat">
+                            <div class="ps-value">{{ last30.watch_hours }}h</div>
+                            <div class="ps-label">Watch Time</div>
+                        </div>
+                        <div class="period-stat">
+                            <div class="ps-value green">+{{ last30.subs_gained }}</div>
+                            <div class="ps-label">Subs Gained</div>
+                        </div>
+                        <div class="period-stat">
+                            <div class="ps-value">{{ last30.net_subs }}</div>
+                            <div class="ps-label">Net Subs</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Videos -->
+            <div class="table-card">
+                <div class="table-title">🏆 Top Performing Videos</div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Title</th>
+                            <th>Views</th>
+                            <th>Likes</th>
+                            <th>Comments</th>
+                            <th>Published</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for v in analytics.top_videos[:10] %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td class="video-title">
+                                {{ v.title[:60] }}{% if v.title|length > 60 %}...{% endif %}
+                            </td>
+                            <td>{{ "{:,}".format(v.views) }}</td>
+                            <td>{{ "{:,}".format(v.likes) }}</td>
+                            <td>{{ "{:,}".format(v.comments) }}</td>
+                            <td>{{ v.published }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">📊</div>
+                <div class="empty-text">No analytics data yet</div>
+                <div class="empty-sub">Run Agent 3 to fetch your channel data</div>
+                <button class="btn-primary" onclick="showSection('agents', null)">Go to Agents</button>
+            </div>
+            {% endif %}
+        </section>
+
+        <!-- ── AGENTS ── -->
+        <section id="agents" class="section">
+            <div class="page-header">
+                <h1>Run Agents</h1>
+                <div class="header-sub">Control each agent individually</div>
+            </div>
+
+            <div class="agents-grid">
+
+                <div class="agent-card">
+                    <div class="agent-header">
+                        <div class="agent-icon a3">📊</div>
+                        <div>
+                            <div class="agent-name">Agent 3 — Analytics Manager</div>
+                            <div class="agent-desc">Fetches real channel stats, comments & 7/30 day trends</div>
+                        </div>
+                    </div>
+                    <div class="agent-schedule">⏰ Runs every 72 hours</div>
+                    <button class="btn-run" onclick="runAgent('3')">▶ Run Agent 3</button>
+                    <div class="agent-log" id="log-3"></div>
+                </div>
+
+                <div class="agent-card">
+                    <div class="agent-header">
+                        <div class="agent-icon a1">💡</div>
+                        <div>
+                            <div class="agent-name">Agent 1 — Creative Head</div>
+                            <div class="agent-desc">Generates content ideas using analytics data</div>
+                        </div>
+                    </div>
+                    <div class="agent-schedule">⏰ Runs every 72 hours</div>
+                    <button class="btn-run" onclick="runAgent('1')">▶ Run Agent 1</button>
+                    <div class="agent-log" id="log-1"></div>
+                </div>
+
+                <div class="agent-card">
+                    <div class="agent-header">
+                        <div class="agent-icon a2">🎨</div>
+                        <div>
+                            <div class="agent-name">Agent 2 — Visual Designer</div>
+                            <div class="agent-desc">Creates thumbnail concepts & design briefs</div>
+                        </div>
+                    </div>
+                    <div class="agent-schedule">⏰ Runs every 72 hours</div>
+                    <button class="btn-run" onclick="runAgent('2')">▶ Run Agent 2</button>
+                    <div class="agent-log" id="log-2"></div>
+                </div>
+
+                <div class="agent-card">
+                    <div class="agent-header">
+                        <div class="agent-icon a4">📧</div>
+                        <div>
+                            <div class="agent-name">Agent 4 — Executive Reporter</div>
+                            <div class="agent-desc">Sends weekly HTML report via Gmail</div>
+                        </div>
+                    </div>
+                    <div class="agent-schedule">⏰ Every Monday 9 AM IST</div>
+                    <button class="btn-run" onclick="runAgent('4')">▶ Run Agent 4</button>
+                    <div class="agent-log" id="log-4"></div>
+                </div>
+
+                <div class="agent-card">
+                    <div class="agent-header">
+                        <div class="agent-icon a5">⬆️</div>
+                        <div>
+                            <div class="agent-name">Agent 5 — Auto Publisher</div>
+                            <div class="agent-desc">Auto uploads from Drive to YouTube on schedule</div>
+                        </div>
+                    </div>
+                    <div class="agent-schedule">⏰ Checks Drive every 6 hours</div>
+                    <button class="btn-run" onclick="runAgent('5')">▶ Run Agent 5</button>
+                    <div class="agent-log" id="log-5"></div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ── CONTENT PLAN ── -->
+        <section id="content" class="section">
+            <div class="page-header">
+                <h1>Content Plan</h1>
+                <div class="header-sub">Video ideas & shorts generated by Agent 1</div>
+            </div>
+
+            {% if ideas %}
+            {% set plan = ideas.content_plan %}
+
+            <div class="generated-at">
+                Last generated: {{ ideas.generated_at }}
+            </div>
+
+            <!-- Content Cards -->
+            <div class="content-grid">
+                {% for v in plan.video_ideas %}
+                <div class="content-card video-card">
+                    <div class="content-badge video-badge">📹 VIDEO</div>
+                    <div class="content-title">{{ v.title }}</div>
+                    <div class="content-concept">{{ v.concept }}</div>
+                    <div class="content-meta">
+                        <span>🕐 {{ v.best_time_to_post }}</span>
+                        <span>📈 {{ v.estimated_views }}</span>
+                        <span>⏱ {{ v.duration }}</span>
+                    </div>
+                    <div class="content-why">💡 {{ v.why_it_will_work }}</div>
+                </div>
+                {% endfor %}
+
+                {% for s in plan.short_ideas %}
+                <div class="content-card short-card">
+                    <div class="content-badge short-badge">📱 SHORT</div>
+                    <div class="content-title">{{ s.title }}</div>
+                    <div class="content-concept">{{ s.concept }}</div>
+                    <div class="content-meta">
+                        <span>🕐 {{ s.best_time_to_post }}</span>
+                    </div>
+                    <div class="content-why">🎣 Hook: {{ s.hook }}</div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Strategy -->
+            <div class="strategy-box">
+                <div class="strategy-title">📌 Weekly Strategy</div>
+                <div class="strategy-text">{{ plan.weekly_strategy }}</div>
+            </div>
+
+            <!-- Topics to Avoid -->
+            <div class="avoid-box">
+                <div class="avoid-title">🚫 Topics to Avoid</div>
+                <div class="avoid-list">
+                    {% for t in plan.topics_to_avoid %}
+                    <span class="avoid-tag">{{ t }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">💡</div>
+                <div class="empty-text">No content plan yet</div>
+                <div class="empty-sub">Run Agent 1 to generate content ideas</div>
+                <button class="btn-primary" onclick="showSection('agents', null)">Go to Agents</button>
+            </div>
+            {% endif %}
+
+            <!-- Handoff to Agent 2 -->
+            <div class="handoff-section">
+                <div class="handoff-title">✅ Happy with the content plan?</div>
+                <div class="handoff-desc">
+                    Send the approved plan to Agent 2 — Visual Designer to generate
+                    thumbnail concepts for all videos automatically.
+                </div>
+                <button class="btn-handoff" onclick="handoffToAgent2()">
+                    🎨 Send to Agent 2 — Visual Designer
+                </button>
+                <div class="handoff-status" id="handoff-status"></div>
+            </div>
+
+            <!-- Chat with Agent 1 -->
+            <div class="chat-section">
+                <div class="chat-title">💬 Chat with Agent 1 — Creative Head</div>
+                <div class="chat-box" id="chat-box-1"></div>
+                <div class="chat-input-row">
+                    <input type="text" id="chat-input-1"
+                           placeholder="Suggest an idea, ask for changes..."
+                           onkeypress="if(event.key==='Enter') sendChat(1)">
+                    <button class="btn-send" onclick="sendChat(1)">Send</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── THUMBNAILS ── -->
+        <section id="thumbnails" class="section">
+            <div class="page-header">
+                <h1>Thumbnail Concepts</h1>
+                <div class="header-sub">Design briefs generated by Agent 2</div>
+            </div>
+
+            {% if thumbnails %}
+            <div class="generated-at">Last generated: {{ thumbnails.generated_at }}</div>
+
+            <div class="thumb-grid">
+                {% for t in thumbnails.thumbnails %}
+                <div class="thumb-card">
+                    <div class="thumb-type {{ t.type }}-type">{{ t.type | upper }}</div>
+                    <div class="thumb-title">
+                        {{ t.video_title[:50] }}{% if t.video_title|length > 50 %}...{% endif %}
+                    </div>
+                    <div class="thumb-preview" style="background: {{ t.color_scheme.primary }}">
+                        <div class="thumb-text-overlay" style="color: {{ t.color_scheme.text }}">
+                            {{ t.text_overlay }}
+                        </div>
+                    </div>
+                    <div class="thumb-details">
+                        <div class="thumb-detail">
+                            <strong>Main Visual:</strong> {{ t.main_visual }}
+                        </div>
+                        <div class="thumb-detail">
+                            <strong>Mood:</strong> {{ t.mood }}
+                        </div>
+                        <div class="thumb-detail">
+                            <strong>Canva Tips:</strong> {{ t.canva_tips }}
+                        </div>
+                        <div class="color-swatches">
+                            <div class="swatch" style="background:{{ t.color_scheme.primary }}"
+                                 title="{{ t.color_scheme.primary }}"></div>
+                            <div class="swatch" style="background:{{ t.color_scheme.secondary }}"
+                                 title="{{ t.color_scheme.secondary }}"></div>
+                            <div class="swatch" style="background:{{ t.color_scheme.accent }}"
+                                 title="{{ t.color_scheme.accent }}"></div>
+                            <div class="swatch" style="background:{{ t.color_scheme.text }}"
+                                 title="{{ t.color_scheme.text }}"></div>
+                        </div>
+                        <div class="ai-prompt">
+                            <strong>AI Image Prompt:</strong>
+                            <div class="prompt-text">{{ t.ai_image_prompt }}</div>
+                            <button class="btn-copy"
+                                onclick="copyText('{{ t.ai_image_prompt | replace("'", "\\'") }}')">
+                                Copy Prompt
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">🎨</div>
+                <div class="empty-text">No thumbnail concepts yet</div>
+                <div class="empty-sub">Run Agent 2 or use the handoff button in Content Plan</div>
+                <button class="btn-primary" onclick="showSection('agents', null)">Go to Agents</button>
+            </div>
+            {% endif %}
+
+            <!-- Chat with Agent 2 -->
+            <div class="chat-section">
+                <div class="chat-title">💬 Chat with Agent 2 — Visual Designer</div>
+                <div class="chat-box" id="chat-box-2"></div>
+                <div class="chat-input-row">
+                    <input type="text" id="chat-input-2"
+                           placeholder="Ask for design changes, new concepts..."
+                           onkeypress="if(event.key==='Enter') sendChat(2)">
+                    <button class="btn-send" onclick="sendChat(2)">Send</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── WEEKLY REPORT ── -->
+        <section id="report" class="section">
+            <div class="page-header">
+                <h1>Weekly Report</h1>
+                <div class="header-sub">Executive summary sent to founders every Monday</div>
+            </div>
+            <div class="report-actions">
+                <button class="btn-primary" onclick="sendReport()">📧 Send Report Now</button>
+                <button class="btn-secondary" onclick="loadReport()">🔄 Refresh</button>
+            </div>
+            <div id="report-status" class="report-status"></div>
+            <div class="report-frame-wrapper">
+                <iframe id="report-frame" src="/api/report" class="report-frame"></iframe>
+            </div>
+        </section>
+
+        <!-- ── PUBLISHER ── -->
+        <section id="publisher" class="section">
+            <div class="page-header">
+                <h1>Auto Publisher</h1>
+                <div class="header-sub">Schedule and upload videos to YouTube automatically</div>
+            </div>
+
+            <div class="publisher-info">
+                <div class="info-card">
+                    <div class="info-icon">📂</div>
+                    <div class="info-text">
+                        <div class="info-title">Google Drive Folders</div>
+                        <div class="info-sub">Cricket Videos & Cricket Shorts</div>
+                    </div>
+                </div>
+                <div class="info-card">
+                    <div class="info-icon">📋</div>
+                    <div class="info-text">
+                        <div class="info-title">Upload Schedule</div>
+                        <div class="info-sub">Managed via Google Sheets</div>
+                    </div>
+                </div>
+                <div class="info-card">
+                    <div class="info-icon">⏰</div>
+                    <div class="info-text">
+                        <div class="info-title">Auto Check</div>
+                        <div class="info-sub">Every 6 hours</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="publisher-actions">
+                <button class="btn-primary" onclick="runAgent('5')">▶ Run Publisher Now</button>
+                <a href="https://docs.google.com/spreadsheets"
+                   target="_blank" class="btn-secondary">
+                    📋 Open Upload Schedule
+                </a>
+            </div>
+            <div class="agent-log" id="log-5-pub"></div>
+        </section>
+
+    </main>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
