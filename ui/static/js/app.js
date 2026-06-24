@@ -1,46 +1,33 @@
-// Navigation
-function showSection(id) {
+// ── Navigation ────────────────────────────────────────────────────────────────
+
+function showSection(id, el) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById(id).classList.add('active');
-    event.currentTarget.classList.add('active');
+    if (el) el.classList.add('active');
 }
+
+// ── Format markdown messages ──────────────────────────────────────────────────
 
 function formatMessage(text) {
     if (!text) return '';
-
-    // Convert **bold** to <strong>
     text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-
-    // Convert *italic* to <em>
     text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
-
-    // Convert ### headings
     text = text.replace(/^### (.*$)/gm, '<h4 style="color:#fff;margin:10px 0 4px">$1</h4>');
-
-    // Convert ## headings
     text = text.replace(/^## (.*$)/gm, '<h3 style="color:#4ade80;margin:12px 0 6px">$1</h3>');
-
-    // Convert bullet points - to li
     text = text.replace(/^\- (.*$)/gm, '<li style="margin:4px 0;color:#cbd5e1">$1</li>');
-
-    // Convert numbered lists
     text = text.replace(/^\d+\. (.*$)/gm, '<li style="margin:4px 0;color:#cbd5e1">$1</li>');
-
-    // Wrap consecutive li items in ul
     text = text.replace(/(<li.*<\/li>\n?)+/g, '<ul style="padding-left:18px;margin:8px 0">$&</ul>');
-
-    // Convert line breaks to <br>
     text = text.replace(/\n\n/g, '<br><br>');
     text = text.replace(/\n/g, '<br>');
-
     return text;
 }
-// Run Agent via WebSocket
+
+// ── Run Agent via HTTP ────────────────────────────────────────────────────────
+
 async function runAgent(agentId) {
     const logEl = document.getElementById(`log-${agentId}`) ||
                   document.getElementById(`log-${agentId}-pub`);
-
     if (!logEl) return;
 
     logEl.style.display = 'block';
@@ -58,23 +45,18 @@ async function runAgent(agentId) {
         '5': 'Auto Publisher'
     };
 
-    logEl.textContent = `Starting Agent ${agentId} — ${agentNames[agentId] || ''}...\n`;
-    logEl.textContent += `Please wait, this may take 30–90 seconds...\n`;
+    logEl.textContent = `Starting Agent ${agentId} — ${agentNames[agentId] || ''}...\nPlease wait, this may take 30–90 seconds...\n`;
 
-    // Animate dots while waiting
     let dots = 0;
     const timer = setInterval(() => {
         dots++;
-        logEl.textContent = logEl.textContent.replace(/\n⏳.*/, '');
-        logEl.textContent += `\n⏳ Running${'...'.slice(0, dots % 4)}`;
+        const base = `Starting Agent ${agentId} — ${agentNames[agentId] || ''}...\nPlease wait, this may take 30–90 seconds...\n`;
+        logEl.textContent = base + `⏳ Running${'.'.repeat(dots % 4)}`;
         logEl.scrollTop = logEl.scrollHeight;
     }, 1000);
 
     try {
-        const response = await fetch(`/api/run-agent/${agentId}`, {
-            method: 'POST'
-        });
-
+        const response = await fetch(`/api/run-agent/${agentId}`, { method: 'POST' });
         clearInterval(timer);
         const data = await response.json();
 
@@ -84,7 +66,6 @@ async function runAgent(agentId) {
         } else {
             logEl.textContent += `\n\n❌ Error: ${data.detail}`;
         }
-
     } catch (err) {
         clearInterval(timer);
         logEl.textContent += `\n\n❌ Failed to connect: ${err.message}`;
@@ -95,88 +76,359 @@ async function runAgent(agentId) {
     logEl.scrollTop = logEl.scrollHeight;
 }
 
-// Send chat message
+// ── Chat ──────────────────────────────────────────────────────────────────────
+
 async function sendChat(agentNum) {
     const input   = document.getElementById(`chat-input-${agentNum}`);
     const chatBox = document.getElementById(`chat-box-${agentNum}`);
     const message = input.value.trim();
-
     if (!message) return;
 
-    // Show user message
-    chatBox.innerHTML += `
-        <div class="chat-msg user">${message}</div>
-    `;
+    chatBox.innerHTML += `<div class="chat-msg user">${message}</div>`;
     input.value = '';
     chatBox.scrollTop = chatBox.scrollHeight;
 
-    // Show typing indicator
     const typingId = 'typing-' + Date.now();
     chatBox.innerHTML += `
         <div class="chat-msg agent" id="${typingId}">
             <div class="sender">Agent ${agentNum}</div>
             <span>Thinking...</span>
-        </div>
-    `;
+        </div>`;
     chatBox.scrollTop = chatBox.scrollHeight;
 
     try {
         const response = await fetch(`/api/chat/agent${agentNum}`, {
-            method: 'POST',
+            method : 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message })
+            body   : JSON.stringify({ message })
         });
-
         const data = await response.json();
-
-        // Remove typing indicator
         document.getElementById(typingId)?.remove();
-
-        // Show agent reply
         chatBox.innerHTML += `
             <div class="chat-msg agent">
                 <div class="sender">Agent ${agentNum}</div>
                 ${formatMessage(data.reply || data.error)}
-            </div>
-        `;
+            </div>`;
         chatBox.scrollTop = chatBox.scrollHeight;
-
     } catch (err) {
         document.getElementById(typingId)?.remove();
         chatBox.innerHTML += `
             <div class="chat-msg agent">
                 <div class="sender">Agent ${agentNum}</div>
-                Error connecting to agent. Make sure it's running.
-            </div>
-        `;
+                Error connecting to agent.
+            </div>`;
     }
 }
 
-// Send report
+// ── Report ────────────────────────────────────────────────────────────────────
+
 async function sendReport() {
     const status = document.getElementById('report-status');
     status.textContent = '⏳ Sending report...';
     try {
-        const ws = new WebSocket('ws://localhost:8000/ws/agent/4');
-        ws.onmessage = (e) => {
-            if (e.data.startsWith('DONE::')) {
-                status.textContent = '✅ Report sent successfully!';
-                ws.close();
-            }
-        };
+        const response = await fetch('/api/run-agent/4', { method: 'POST' });
+        const data     = await response.json();
+        if (data.status === 'success') {
+            status.textContent = '✅ Report sent successfully!';
+        } else {
+            status.textContent = '❌ Error sending report.';
+        }
     } catch (err) {
         status.textContent = '❌ Error sending report.';
     }
 }
 
-// Refresh report iframe
 function loadReport() {
     document.getElementById('report-frame').src = '/api/report?' + Date.now();
 }
 
-// Copy text to clipboard
 function copyText(text) {
     navigator.clipboard.writeText(text).then(() => {
         alert('Copied to clipboard!');
     });
 }
+
+// ── Handoff Agent 1 → Agent 2 ─────────────────────────────────────────────────
+
+async function handoffToAgent2() {
+    const btn    = document.querySelector('.btn-handoff');
+    const status = document.getElementById('handoff-status');
+
+    btn.disabled       = true;
+    btn.textContent    = '⏳ Sending to Agent 2...';
+    status.textContent = 'Preparing content plan for Agent 2...';
+
+    try {
+        const response = await fetch('/api/handoff/agent1-to-agent2', { method: 'POST' });
+        const data     = await response.json();
+
+        if (data.status === 'success') {
+            btn.textContent    = '✅ Sent to Agent 2!';
+            status.textContent = '✅ Content plan sent! Go to Thumbnails tab to see Agent 2\'s response.';
+            status.style.color = '#4ade80';
+
+            const chat2 = document.getElementById('chat-box-2');
+            if (chat2) {
+                chat2.innerHTML += `
+                    <div class="chat-msg agent">
+                        <div class="sender">Agent 2 — Visual Designer</div>
+                        ${formatMessage(data.reply)}
+                    </div>`;
+                chat2.scrollTop = chat2.scrollHeight;
+            }
+            setTimeout(() => {
+                status.textContent = '👉 Click "Thumbnails" in the sidebar to see Agent 2\'s thumbnail concepts.';
+            }, 2000);
+        } else {
+            btn.disabled       = false;
+            btn.textContent    = '🎨 Send to Agent 2 — Visual Designer';
+            status.textContent = '❌ Error: ' + (data.error || 'Unknown error');
+            status.style.color = '#f87171';
+        }
+    } catch (err) {
+        btn.disabled       = false;
+        btn.textContent    = '🎨 Send to Agent 2 — Visual Designer';
+        status.textContent = '❌ Failed: ' + err.message;
+        status.style.color = '#f87171';
+    }
+}
+
+// ── Performance Review ────────────────────────────────────────────────────────
+
+let perfData        = null;
+let benchmarks      = {};
+let currentBenchTab = 'video';
+let sortCol         = 'views';
+let sortAsc         = false;
+
+const METRIC_LABELS = {
+    impressions       : 'Impressions',
+    views             : 'Views',
+    ctr               : 'CTR %',
+    avg_view_duration : 'Avg Duration (sec)',
+    audience_retention: 'Retention %',
+    watch_hours       : 'Watch Hours',
+    subs_gained       : 'Subs Gained',
+    returning_viewers : 'Returning Viewers'
+};
+
+const METRIC_KEYS = Object.keys(METRIC_LABELS);
+
+function setDefaultDates() {
+    const end   = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - 28);
+    const fmt = d => d.toISOString().split('T')[0];
+    const si  = document.getElementById('perf-start');
+    const ei  = document.getElementById('perf-end');
+    if (si) si.value = fmt(start);
+    if (ei) ei.value = fmt(end);
+}
+
+async function loadBenchmarks() {
+    try {
+        const res   = await fetch('/api/benchmarks');
+        benchmarks  = await res.json();
+        renderBenchmarkGrid();
+    } catch (e) {
+        console.error('Could not load benchmarks', e);
+    }
+}
+
+function renderBenchmarkGrid() {
+    const grid = document.getElementById('benchmark-grid');
+    if (!grid) return;
+    const b = benchmarks[currentBenchTab] || {};
+    grid.innerHTML = METRIC_KEYS.map(key => `
+        <div class="bench-item">
+            <div class="bench-item-label">${METRIC_LABELS[key]}</div>
+            <input type="number" id="bench-${key}" value="${b[key] || 0}" step="0.1">
+        </div>
+    `).join('');
+}
+
+function switchBenchTab(type, btn) {
+    currentBenchTab = type;
+    document.querySelectorAll('.bench-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderBenchmarkGrid();
+}
+
+async function saveBenchmarks() {
+    const status = document.getElementById('bench-save-status');
+    METRIC_KEYS.forEach(key => {
+        const input = document.getElementById(`bench-${key}`);
+        if (input) {
+            if (!benchmarks[currentBenchTab]) benchmarks[currentBenchTab] = {};
+            benchmarks[currentBenchTab][key] = parseFloat(input.value) || 0;
+        }
+    });
+    try {
+        const res  = await fetch('/api/benchmarks', {
+            method : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body   : JSON.stringify(benchmarks)
+        });
+        const data = await res.json();
+        if (data.status === 'saved') {
+            status.textContent = '✅ Benchmarks saved!';
+            setTimeout(() => status.textContent = '', 3000);
+        }
+    } catch (e) {
+        status.textContent = '❌ Failed to save';
+    }
+}
+
+async function fetchPerformance() {
+    const start = document.getElementById('perf-start').value;
+    const end   = document.getElementById('perf-end').value;
+    const type  = document.getElementById('perf-type').value;
+
+    if (!start || !end) {
+        alert('Please select both start and end dates');
+        return;
+    }
+
+    document.getElementById('perf-loading').style.display = 'block';
+    document.getElementById('perf-results').style.display = 'none';
+
+    try {
+        const res  = await fetch('/api/performance', {
+            method : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body   : JSON.stringify({ start_date: start, end_date: end, content_type: type })
+        });
+        const data = await res.json();
+        document.getElementById('perf-loading').style.display = 'none';
+
+        if (data.status === 'error') {
+            alert('Error: ' + data.detail);
+            return;
+        }
+
+        perfData = data;
+        renderSummary(data.consolidated, type);
+        renderTable(data.individual, type);
+        document.getElementById('perf-results').style.display = 'block';
+
+    } catch (e) {
+        document.getElementById('perf-loading').style.display = 'none';
+        alert('Failed: ' + e.message);
+    }
+}
+
+function renderSummary(consolidated, type) {
+    const grid  = document.getElementById('perf-summary-grid');
+    const bench = benchmarks[type] || {};
+
+    const metricMap = {
+        impressions       : consolidated.impressions,
+        views             : consolidated.views,
+        ctr               : consolidated.ctr,
+        avg_view_duration : consolidated.avg_view_duration_sec,
+        audience_retention: consolidated.audience_retention,
+        watch_hours       : consolidated.watch_hours,
+        subs_gained       : consolidated.subs_gained,
+        returning_viewers : consolidated.returning_viewers
+    };
+
+    grid.innerHTML = METRIC_KEYS.map(key => {
+        const actual   = metricMap[key] || 0;
+        const target   = bench[key] || 1;
+        const isGood   = actual >= target;
+        const pct      = Math.min((actual / target) * 100, 100).toFixed(0);
+        const diff     = actual - target;
+        const diffSign = diff >= 0 ? '+' : '';
+        const diffFmt  = (key === 'ctr' || key === 'audience_retention')
+                         ? `${diffSign}${diff.toFixed(2)}`
+                         : `${diffSign}${Math.round(diff).toLocaleString()}`;
+
+        let displayVal = actual;
+        if (key === 'ctr' || key === 'audience_retention') {
+            displayVal = actual.toFixed(1) + '%';
+        } else if (key === 'avg_view_duration') {
+            const m = Math.floor(actual / 60);
+            const s = Math.floor(actual % 60);
+            displayVal = `${m}:${String(s).padStart(2, '0')}`;
+        } else if (key === 'watch_hours') {
+            displayVal = actual.toFixed(1) + 'h';
+        } else {
+            displayVal = Math.round(actual).toLocaleString();
+        }
+
+        return `
+            <div class="perf-metric-card ${isGood ? 'positive' : 'negative'}">
+                <div class="metric-status">${isGood ? '✅' : '❌'}</div>
+                <div class="metric-name">${METRIC_LABELS[key]}</div>
+                <div class="metric-actual">${displayVal}</div>
+                <div class="metric-benchmark">Target: ${target.toLocaleString()}</div>
+                <div class="metric-bar-bg">
+                    <div class="metric-bar-fill ${isGood ? 'positive' : 'negative'}"
+                         style="width:${pct}%"></div>
+                </div>
+                <div class="metric-diff ${isGood ? 'positive' : 'negative'}">
+                    ${diffFmt} vs benchmark
+                </div>
+            </div>`;
+    }).join('');
+}
+
+function renderTable(videos, type) {
+    const bench = benchmarks[type] || {};
+    const count = document.getElementById('video-count');
+    if (count) count.textContent = `(${videos.length} ${type}s)`;
+
+    const sorted = [...videos].sort((a, b) => {
+        const av = a[sortCol] || 0;
+        const bv = b[sortCol] || 0;
+        if (typeof av === 'string') return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
+        return sortAsc ? av - bv : bv - av;
+    });
+
+    const tbody = document.getElementById('perf-table-body');
+    if (!sorted.length) {
+        tbody.innerHTML = `<tr><td colspan="9"
+            style="text-align:center;color:#64748b;padding:24px">
+            No ${type}s found in this date range</td></tr>`;
+        return;
+    }
+
+    const cls = (val, key) => {
+        const target = bench[key];
+        if (!target) return '';
+        return val >= target ? 'good' : 'bad';
+    };
+
+    tbody.innerHTML = sorted.map(v => `
+        <tr>
+            <td class="td-title" title="${v.title}">
+                ${v.title.substring(0, 45)}${v.title.length > 45 ? '...' : ''}
+            </td>
+            <td>${v.published}</td>
+            <td class="${cls(v.impressions, 'impressions')}">${v.impressions.toLocaleString()}</td>
+            <td class="${cls(v.views, 'views')}">${v.views.toLocaleString()}</td>
+            <td class="${cls(v.ctr, 'ctr')}">${v.ctr.toFixed(1)}%</td>
+            <td class="${cls(v.avg_view_duration_sec, 'avg_view_duration')}">${v.avg_view_duration_fmt}</td>
+            <td class="${cls(v.audience_retention, 'audience_retention')}">${v.audience_retention.toFixed(1)}%</td>
+            <td class="${cls(v.watch_hours, 'watch_hours')}">${v.watch_hours}h</td>
+            <td class="${cls(v.subs_gained, 'subs_gained')}">${v.subs_gained}</td>
+        </tr>`
+    ).join('');
+}
+
+function sortTable(col) {
+    if (sortCol === col) sortAsc = !sortAsc;
+    else { sortCol = col; sortAsc = false; }
+    if (perfData) renderTable(perfData.individual, perfData.content_type);
+}
+
+function exportPDF() {
+    window.print();
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => {
+    setDefaultDates();
+    loadBenchmarks();
+});
