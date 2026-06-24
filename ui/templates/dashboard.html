@@ -37,6 +37,9 @@
             <a href="#publisher"  class="nav-item" onclick="showSection('publisher', this)">
                 <span class="nav-icon">⬆️</span> Publisher
             </a>
+            <a href="#performance" class="nav-item" onclick="showSection('performance', this)">
+               <span class="nav-icon">📈</span> Performance
+            </a>
         </nav>
         <div class="sidebar-footer">
             <div class="status-dot"></div>
@@ -492,8 +495,96 @@
             </div>
             <div class="agent-log" id="log-5-pub"></div>
         </section>
+        <!-- ── PERFORMANCE REVIEW ── -->
+        <section id="performance" class="section">
+            <div class="page-header">
+                <h1>Performance Review</h1>
+                <div class="header-sub">Analyse video metrics against benchmarks</div>
+            </div>
 
+            <!-- Filters -->
+            <div class="perf-filters">
+                <div class="filter-group">
+                    <label class="filter-label">Start Date</label>
+                    <input type="date" id="perf-start" class="filter-input">
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">End Date</label>
+                    <input type="date" id="perf-end" class="filter-input">
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">Content Type</label>
+                    <select id="perf-type" class="filter-input">
+                        <option value="video">Videos Only</option>
+                        <option value="short">Shorts Only</option>
+                    </select>
+                </div>
+                <button class="btn-fetch" onclick="fetchPerformance()">
+                    📊 Fetch Metrics
+                </button>
+            </div>
+
+            <!-- Benchmarks Editor -->
+            <div class="benchmark-section">
+                <div class="benchmark-header">
+                    <div class="benchmark-title">🎯 Benchmarks</div>
+                    <div class="benchmark-sub">Set your targets. Green = above benchmark. Red = below.</div>
+                    <div class="benchmark-type-tabs">
+                        <button class="bench-tab active" onclick="switchBenchTab('video', this)">Videos</button>
+                        <button class="bench-tab" onclick="switchBenchTab('short', this)">Shorts</button>
+                    </div>
+                </div>
+                <div class="benchmark-grid" id="benchmark-grid"></div>
+                <button class="btn-save-bench" onclick="saveBenchmarks()">💾 Save Benchmarks</button>
+                <div class="bench-save-status" id="bench-save-status"></div>
+            </div>
+
+            <!-- Loading -->
+            <div class="perf-loading" id="perf-loading" style="display:none">
+                <div class="loading-spinner"></div>
+                <div class="loading-text">Fetching metrics from YouTube Analytics...</div>
+            </div>
+
+            <!-- Results -->
+            <div id="perf-results" style="display:none">
+
+                <div class="perf-section-title">📊 Consolidated Summary</div>
+                <div class="perf-summary-grid" id="perf-summary-grid"></div>
+
+                <div class="perf-section-title" style="margin-top:28px">
+                    🎬 Individual Video Breakdown
+                    <span class="video-count" id="video-count"></span>
+                </div>
+                <div class="perf-table-wrap">
+                    <table class="perf-table" id="perf-table">
+                        <thead>
+                            <tr>
+                                <th onclick="sortTable('title')">Title ↕</th>
+                                <th onclick="sortTable('published')">Date ↕</th>
+                                <th onclick="sortTable('impressions')">Impressions ↕</th>
+                                <th onclick="sortTable('views')">Views ↕</th>
+                                <th onclick="sortTable('ctr')">CTR % ↕</th>
+                                <th onclick="sortTable('avg_view_duration_fmt')">Avg Duration ↕</th>
+                                <th onclick="sortTable('audience_retention')">Retention % ↕</th>
+                                <th onclick="sortTable('watch_hours')">Watch Hrs ↕</th>
+                                <th onclick="sortTable('subs_gained')">Subs ↕</th>
+                            </tr>
+                        </thead>
+                        <tbody id="perf-table-body"></tbody>
+                    </table>
+                </div>
+
+                <div class="export-row">
+                    <button class="btn-export" onclick="exportPDF()">
+                        📄 Export as PDF
+                    </button>
+                    <div class="export-sub">Clean meeting-ready report with summary & video breakdown</div>
+                </div>
+
+            </div>
+        </section>
     </main>
+
 
     <script src="/static/js/app.js"></script>
 </body>
