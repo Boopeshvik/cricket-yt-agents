@@ -248,18 +248,14 @@ def fetch_performance_metrics(youtube_analytics, channel_id, start_date, end_dat
 
     try:
         # Build filters based on content type
-        if content_type == "short":
-            filter_str = "videoType==shortVideo"
-        else:
-            filter_str = "videoType==video"
-
+        # Fetch all video data without content type filter
+        # (videoType filter not supported for all channels)
         response = youtube_analytics.reports().query(
-            ids       = f"channel=={channel_id}",
-            startDate = start_date,
-            endDate   = end_date,
-            metrics   = "views,estimatedMinutesWatched,subscribersGained,impressions,impressionClickThroughRate,averageViewDuration,averageViewPercentage",
-            dimensions= "day",
-            filters   = filter_str
+            ids=f"channel=={channel_id}",
+            startDate=start_date,
+            endDate=end_date,
+            metrics="views,estimatedMinutesWatched,subscribersGained,impressions,impressionClickThroughRate,averageViewDuration,averageViewPercentage",
+            dimensions="day"
         ).execute()
 
         rows = response.get("rows", [])
