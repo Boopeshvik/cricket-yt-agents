@@ -247,13 +247,19 @@ def fetch_performance_metrics(youtube_analytics, channel_id, start_date, end_dat
     print(f"Fetching performance metrics ({content_type}s) from {start_date} to {end_date}...")
 
     try:
+        # Build filters based on content type
+        if content_type == "short":
+            filter_str = "videoType==shortVideo"
+        else:
+            filter_str = "videoType==video"
+
         response = youtube_analytics.reports().query(
-            ids        = f"channel=={channel_id}",
-            startDate  = start_date,
-            endDate    = end_date,
-            metrics    = "views,estimatedMinutesWatched,subscribersGained,impressions,impressionClickThroughRate,averageViewDuration,averageViewPercentage,returningViewers",
-            dimensions = "day",
-            filters    = f"videoType=={content_type}"
+            ids       = f"channel=={channel_id}",
+            startDate = start_date,
+            endDate   = end_date,
+            metrics   = "views,estimatedMinutesWatched,subscribersGained,impressions,impressionClickThroughRate,averageViewDuration,averageViewPercentage",
+            dimensions= "day",
+            filters   = filter_str
         ).execute()
 
         rows = response.get("rows", [])
@@ -280,8 +286,8 @@ def fetch_performance_metrics(youtube_analytics, channel_id, start_date, end_dat
         total_impressions = sum(r[4] for r in rows)
         avg_ctr           = sum(r[5] for r in rows) / len(rows) * 100
         avg_duration_sec  = sum(r[6] for r in rows) / len(rows)
-        avg_retention     = sum(r[7] for r in rows) / len(rows)
-        total_returning   = sum(r[8] for r in rows) if len(rows[0]) > 8 else 0
+        avg_retention     = sum(r[7] for r in rows) / len(rows) if len(rows[0]) > 7 else 0
+        total_returning   = 0
 
         mins         = int(avg_duration_sec // 60)
         secs         = int(avg_duration_sec % 60)
@@ -356,12 +362,12 @@ def fetch_individual_video_metrics(youtube, youtube_analytics, channel_id, start
             duration = detail["contentDetails"]["duration"]
             stats    = detail["statistics"]
 
-            match        = re.match(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', duration)
-            hours        = int(match.group(1) or 0)
-            minutes      = int(match.group(2) or 0)
-            seconds      = int(match.group(3) or 0)
+            match         = re.match(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', duration)
+            hours         = int(match.group(1) or 0)
+            minutes       = int(match.group(2) or 0)
+            seconds       = int(match.group(3) or 0)
             total_seconds = hours * 3600 + minutes * 60 + seconds
-            is_short     = total_seconds <= 60
+            is_short      = total_seconds <= 60
 
             if content_type == "short" and not is_short:
                 continue
@@ -403,14 +409,14 @@ def fetch_individual_video_metrics(youtube, youtube_analytics, channel_id, start
                         "video_id"             : vid_id,
                         "title"                : video_info[vid_id]["title"],
                         "published"            : video_info[vid_id]["published"],
-                        "views"                : int(r[0])             if len(r) > 0 else 0,
+                        "views"                : int(r[0])                  if len(r) > 0 else 0,
                         "watch_hours"          : round(float(r[1]) / 60, 1) if len(r) > 1 else 0,
-                        "impressions"          : int(r[2])             if len(r) > 2 else 0,
+                        "impressions"          : int(r[2])                  if len(r) > 2 else 0,
                         "ctr"                  : round(float(r[3]) * 100, 2) if len(r) > 3 else 0,
                         "avg_view_duration_sec": round(dur_sec, 1),
                         "avg_view_duration_fmt": f"{mins}:{secs:02d}",
-                        "audience_retention"   : round(float(r[5]), 1) if len(r) > 5 else 0,
-                        "subs_gained"          : int(r[6])             if len(r) > 6 else 0,
+                        "audience_retention"   : round(float(r[5]), 1)      if len(r) > 5 else 0,
+                        "subs_gained"          : int(r[6])                  if len(r) > 6 else 0,
                         "returning_viewers"    : 0,
                         "likes"                : video_info[vid_id]["likes"],
                         "comments"             : video_info[vid_id]["comments"]
