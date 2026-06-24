@@ -382,6 +382,43 @@ async def get_performance(request: Request):
             "status": "error",
             "detail": traceback.format_exc()
         })
+
+       @app.get("/api/debug-performance")
+    async def debug_ performance():
+    try:
+            from utils.google_auth import get_google_services
+            from agents.agent3_analytics import fetch_channel_stats
+            from datetime import datetime, timedelta
+
+            youtube, youtube_analytics, gmail, drive = get_google_services()
+            channel_stats = fetch_channel_stats(youtube)
+            channel_id = channel_stats["channel_id"]
+
+            today = datetime.now().strftime("%Y-%m-%d")
+            day30ago = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+
+            response = youtube_analytics.reports().query(
+                ids=f"channel=={channel_id}",
+                startDate=day30ago,
+                endDate=today,
+                metrics="views,estimatedMinutesWatched,subscribersGained,impressions,impressionClickThroughRate,averageViewDuration,averageViewPercentage",
+                dimensions="day"
+            ).execute()
+
+            return JSONResponse(content={
+                "channel_id": channel_id,
+                "date_range": f"{day30ago} to {today}",
+                "row_count": len(response.get("rows", [])),
+                "column_headers": response.get("columnHeaders", []),
+                "first_3_rows": response.get("rows", [])[:3],
+                "raw_response": response
+            })
+
+        except Exception as e:
+            import traceback
+            return JSONResponse(content={
+                "error": traceback.format_exc()
+            })
 # ── Chat Endpoints ────────────────────────────────────────────────────────────
 
 
