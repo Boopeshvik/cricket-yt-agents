@@ -297,7 +297,94 @@ Please generate detailed thumbnail concepts for each of these videos and shorts.
             "error": traceback.format_exc()
         })
 
+# ── Benchmarks ────────────────────────────────────────────────────────────────
+
+@app.get("/api/benchmarks")
+async def get_benchmarks():
+    data = load_json("data/benchmarks.json")
+    if data:
+        return JSONResponse(content=data)
+    defaults = {
+        "video": {
+            "impressions"       : 5000,
+            "views"             : 1000,
+            "ctr"               : 4.0,
+            "avg_view_duration" : 180,
+            "audience_retention": 40.0,
+            "watch_hours"       : 50,
+            "subs_gained"       : 10,
+            "returning_viewers" : 200
+        },
+        "short": {
+            "impressions"       : 10000,
+            "views"             : 5000,
+            "ctr"               : 6.0,
+            "avg_view_duration" : 30,
+            "audience_retention": 60.0,
+            "watch_hours"       : 20,
+            "subs_gained"       : 5,
+            "returning_viewers" : 500
+        }
+    }
+    return JSONResponse(content=defaults)
+
+
+@app.post("/api/benchmarks")
+async def save_benchmarks(request: Request):
+    body = await request.json()
+    os.makedirs("data", exist_ok=True)
+    with open("data/benchmarks.json", "w") as f:
+        json.dump(body, f, indent=2)
+    return JSONResponse(content={"status": "saved"})
+
+
+@app.post("/api/performance")
+async def get_performance(request: Request):
+    body         = await request.json()
+    start_date   = body.get("start_date")
+    end_date     = body.get("end_date")
+    content_type = body.get("content_type", "video")
+
+    try:
+        from utils.google_auth import get_google_services
+        from agents.agent3_analytics import (
+            fetch_channel_stats,
+            fetch_performance_metrics,
+            fetch_individual_video_metrics
+        )
+
+        youtube, youtube_analytics, gmail, drive = get_google_services()
+        channel_stats = fetch_channel_stats(youtube)
+        channel_id    = channel_stats["channel_id"]
+
+        consolidated = fetch_performance_metrics(
+            youtube_analytics, channel_id,
+            start_date, end_date, content_type
+        )
+
+        individual = fetch_individual_video_metrics(
+            youtube, youtube_analytics, channel_id,
+            start_date, end_date, content_type
+        )
+
+        return JSONResponse(content={
+            "status"      : "success",
+            "consolidated": consolidated,
+            "individual"  : individual,
+            "start_date"  : start_date,
+            "end_date"    : end_date,
+            "content_type": content_type
+        })
+
+    except Exception as e:
+        import traceback
+        return JSONResponse(content={
+            "status": "error",
+            "detail": traceback.format_exc()
+        })
 # ── Chat Endpoints ────────────────────────────────────────────────────────────
+
+
 
 @app.post("/api/chat/agent1")
 async def chat_agent1(request: Request):
