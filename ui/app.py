@@ -2,6 +2,7 @@ import json
 import os
 import asyncio
 import threading
+from datetime import datetime, timedelta
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -170,7 +171,6 @@ async def test_agent(agent_id: str):
             except Exception as e:
                 import traceback
                 result["error"] = traceback.format_exc()
-                print("THREAD ERROR:\n", traceback.format_exc())
 
         thread = threading.Thread(target=thread_target)
         thread.start()
@@ -195,6 +195,44 @@ async def test_agent(agent_id: str):
         })
 
 
+# ── Debug Performance ─────────────────────────────────────────────────────────
+
+@app.get("/api/debug-performance")
+async def debug_performance():
+    try:
+        from utils.google_auth import get_google_services
+        from agents.agent3_analytics import fetch_channel_stats
+
+        youtube, youtube_analytics, gmail, drive = get_google_services()
+        channel_stats = fetch_channel_stats(youtube)
+        channel_id    = channel_stats["channel_id"]
+
+        today    = datetime.now().strftime("%Y-%m-%d")
+        day30ago = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+
+        response = youtube_analytics.reports().query(
+            ids       = f"channel=={channel_id}",
+            startDate = day30ago,
+            endDate   = today,
+            metrics   = "views,estimatedMinutesWatched,subscribersGained,impressions,impressionClickThroughRate,averageViewDuration,averageViewPercentage",
+            dimensions= "day"
+        ).execute()
+
+        return JSONResponse(content={
+            "channel_id"    : channel_id,
+            "date_range"    : f"{day30ago} to {today}",
+            "row_count"     : len(response.get("rows", [])),
+            "column_headers": response.get("columnHeaders", []),
+            "first_3_rows"  : response.get("rows", [])[:3],
+        })
+
+    except Exception as e:
+        import traceback
+        return JSONResponse(content={
+            "error": traceback.format_exc()
+        })
+
+
 # ── WebSocket Agent Runner ────────────────────────────────────────────────────
 
 @app.websocket("/ws/agent/{agent_id}")
@@ -212,7 +250,6 @@ async def run_agent_ws(websocket: WebSocket, agent_id: str):
             except Exception as e:
                 import traceback
                 result["error"] = traceback.format_exc()
-                print("THREAD ERROR:\n", traceback.format_exc())
 
         thread = threading.Thread(target=thread_target)
         thread.start()
@@ -234,34 +271,27 @@ async def run_agent_ws(websocket: WebSocket, agent_id: str):
     except WebSocketDisconnect:
         pass
     except Exception as e:
-        import traceback
-        print("WS ERROR:\n", traceback.format_exc())
         await websocket.send_text(f"ERROR::{str(e)}")
 
-#---hand-off----
+
+# ── Handoff Agent 1 → Agent 2 ─────────────────────────────────────────────────
 
 @app.post("/api/handoff/agent1-to-agent2")
 async def handoff_to_agent2(request: Request):
     try:
-        # Load latest content ideas from Agent 1
         ideas = load_json("data/content_ideas.json")
         if not ideas:
             return JSONResponse(content={
                 "error": "No content ideas found. Run Agent 1 first."
             })
 
-        # Build a handoff message for Agent 2
         plan     = ideas.get("content_plan", {})
         videos   = plan.get("video_ideas",  [])
         shorts   = plan.get("short_ideas",  [])
         strategy = plan.get("weekly_strategy", "")
 
-        video_list = "\n".join([
-            f"{i+1}. {v['title']}" for i, v in enumerate(videos[:5])
-        ])
-        short_list = "\n".join([
-            f"{i+1}. {s['title']}" for i, s in enumerate(shorts[:5])
-        ])
+        video_list = "\n".join([f"{i+1}. {v['title']}" for i, v in enumerate(videos[:5])])
+        short_list = "\n".join([f"{i+1}. {s['title']}" for i, s in enumerate(shorts[:5])])
 
         handoff_message = f"""Agent 1 has finalized the content plan. Here are the approved ideas:
 
@@ -274,14 +304,9 @@ SHORT IDEAS:
 WEEKLY STRATEGY:
 {strategy}
 
-Please generate detailed thumbnail concepts for each of these videos and shorts. Focus on making them bold, high CTR, and optimized for Tamil cricket fans on mobile."""
+Please generate detailed thumbnail concepts for each of these videos and shorts."""
 
-        # Send to Agent 2
-        from agents.agent2_designer import (
-            chat_with_designer,
-            build_system_prompt
-        )
-
+        from agents.agent2_designer import chat_with_designer, build_system_prompt
         system_prompt = build_system_prompt()
         reply         = chat_with_designer(system_prompt, handoff_message)
 
@@ -293,9 +318,8 @@ Please generate detailed thumbnail concepts for each of these videos and shorts.
 
     except Exception as e:
         import traceback
-        return JSONResponse(content={
-            "error": traceback.format_exc()
-        })
+        return JSONResponse(content={"error": traceback.format_exc()})
+
 
 # ── Benchmarks ────────────────────────────────────────────────────────────────
 
@@ -383,45 +407,8 @@ async def get_performance(request: Request):
             "detail": traceback.format_exc()
         })
 
-       @app.get("/api/debug-performance")
-    async def debug_ performance():
-    try:
-            from utils.google_auth import get_google_services
-            from agents.agent3_analytics import fetch_channel_stats
-            from datetime import datetime, timedelta
 
-            youtube, youtube_analytics, gmail, drive = get_google_services()
-            channel_stats = fetch_channel_stats(youtube)
-            channel_id = channel_stats["channel_id"]
-
-            today = datetime.now().strftime("%Y-%m-%d")
-            day30ago = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
-
-            response = youtube_analytics.reports().query(
-                ids=f"channel=={channel_id}",
-                startDate=day30ago,
-                endDate=today,
-                metrics="views,estimatedMinutesWatched,subscribersGained,impressions,impressionClickThroughRate,averageViewDuration,averageViewPercentage",
-                dimensions="day"
-            ).execute()
-
-            return JSONResponse(content={
-                "channel_id": channel_id,
-                "date_range": f"{day30ago} to {today}",
-                "row_count": len(response.get("rows", [])),
-                "column_headers": response.get("columnHeaders", []),
-                "first_3_rows": response.get("rows", [])[:3],
-                "raw_response": response
-            })
-
-        except Exception as e:
-            import traceback
-            return JSONResponse(content={
-                "error": traceback.format_exc()
-            })
 # ── Chat Endpoints ────────────────────────────────────────────────────────────
-
-
 
 @app.post("/api/chat/agent1")
 async def chat_agent1(request: Request):
