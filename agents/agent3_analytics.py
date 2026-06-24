@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from datetime import datetime, timedelta
 from utils.google_auth import get_google_services
 
@@ -240,6 +241,190 @@ def run_agent3():
     print("Agent 3 completed successfully!")
 
     return brief
+
+
+def fetch_performance_metrics(youtube_analytics, channel_id, start_date, end_date, content_type="video"):
+    print(f"Fetching performance metrics ({content_type}s) from {start_date} to {end_date}...")
+
+    try:
+        response = youtube_analytics.reports().query(
+            ids        = f"channel=={channel_id}",
+            startDate  = start_date,
+            endDate    = end_date,
+            metrics    = "views,estimatedMinutesWatched,subscribersGained,impressions,impressionClickThroughRate,averageViewDuration,averageViewPercentage,returningViewers",
+            dimensions = "day",
+            filters    = f"videoType=={content_type}"
+        ).execute()
+
+        rows = response.get("rows", [])
+
+        if not rows:
+            return {
+                "impressions"          : 0,
+                "views"                : 0,
+                "ctr"                  : 0,
+                "avg_view_duration_sec": 0,
+                "avg_view_duration_fmt": "0:00",
+                "audience_retention"   : 0,
+                "watch_hours"          : 0,
+                "subs_gained"          : 0,
+                "returning_viewers"    : 0,
+                "from_date"            : start_date,
+                "to_date"              : end_date,
+                "content_type"         : content_type
+            }
+
+        total_views       = sum(r[1] for r in rows)
+        total_watch_mins  = sum(r[2] for r in rows)
+        total_subs        = sum(r[3] for r in rows)
+        total_impressions = sum(r[4] for r in rows)
+        avg_ctr           = sum(r[5] for r in rows) / len(rows) * 100
+        avg_duration_sec  = sum(r[6] for r in rows) / len(rows)
+        avg_retention     = sum(r[7] for r in rows) / len(rows)
+        total_returning   = sum(r[8] for r in rows) if len(rows[0]) > 8 else 0
+
+        mins         = int(avg_duration_sec // 60)
+        secs         = int(avg_duration_sec % 60)
+        duration_fmt = f"{mins}:{secs:02d}"
+
+        return {
+            "impressions"          : int(total_impressions),
+            "views"                : int(total_views),
+            "ctr"                  : round(avg_ctr, 2),
+            "avg_view_duration_sec": round(avg_duration_sec, 1),
+            "avg_view_duration_fmt": duration_fmt,
+            "audience_retention"   : round(avg_retention, 1),
+            "watch_hours"          : round(total_watch_mins / 60, 1),
+            "subs_gained"          : int(total_subs),
+            "returning_viewers"    : int(total_returning),
+            "from_date"            : start_date,
+            "to_date"              : end_date,
+            "content_type"         : content_type
+        }
+
+    except Exception as e:
+        print(f"Error fetching performance metrics: {e}")
+        return {
+            "impressions"          : 0,
+            "views"                : 0,
+            "ctr"                  : 0,
+            "avg_view_duration_sec": 0,
+            "avg_view_duration_fmt": "0:00",
+            "audience_retention"   : 0,
+            "watch_hours"          : 0,
+            "subs_gained"          : 0,
+            "returning_viewers"    : 0,
+            "from_date"            : start_date,
+            "to_date"              : end_date,
+            "content_type"         : content_type,
+            "error"                : str(e)
+        }
+
+
+def fetch_individual_video_metrics(youtube, youtube_analytics, channel_id, start_date, end_date, content_type="video"):
+    print(f"Fetching individual {content_type} metrics...")
+
+    try:
+        search_response = youtube.search().list(
+            part            = "snippet",
+            channelId       = channel_id,
+            type            = "video",
+            order           = "date",
+            publishedAfter  = f"{start_date}T00:00:00Z",
+            publishedBefore = f"{end_date}T23:59:59Z",
+            maxResults      = 50
+        ).execute()
+
+        items      = search_response.get("items", [])
+        video_ids  = []
+        video_info = {}
+
+        for item in items:
+            vid_id = item["id"]["videoId"]
+            title  = item["snippet"]["title"]
+            date   = item["snippet"]["publishedAt"][:10]
+
+            details = youtube.videos().list(
+                part = "contentDetails,statistics",
+                id   = vid_id
+            ).execute()
+
+            if not details["items"]:
+                continue
+
+            detail   = details["items"][0]
+            duration = detail["contentDetails"]["duration"]
+            stats    = detail["statistics"]
+
+            match        = re.match(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', duration)
+            hours        = int(match.group(1) or 0)
+            minutes      = int(match.group(2) or 0)
+            seconds      = int(match.group(3) or 0)
+            total_seconds = hours * 3600 + minutes * 60 + seconds
+            is_short     = total_seconds <= 60
+
+            if content_type == "short" and not is_short:
+                continue
+            if content_type == "video" and is_short:
+                continue
+
+            video_ids.append(vid_id)
+            video_info[vid_id] = {
+                "title"    : title,
+                "published": date,
+                "duration" : duration,
+                "views"    : int(stats.get("viewCount",    0)),
+                "likes"    : int(stats.get("likeCount",    0)),
+                "comments" : int(stats.get("commentCount", 0))
+            }
+
+        if not video_ids:
+            return []
+
+        results = []
+        for vid_id in video_ids[:20]:
+            try:
+                analytics = youtube_analytics.reports().query(
+                    ids       = f"channel=={channel_id}",
+                    startDate = start_date,
+                    endDate   = end_date,
+                    metrics   = "views,estimatedMinutesWatched,impressions,impressionClickThroughRate,averageViewDuration,averageViewPercentage,subscribersGained",
+                    filters   = f"video=={vid_id}"
+                ).execute()
+
+                rows = analytics.get("rows", [])
+                if rows:
+                    r       = rows[0]
+                    dur_sec = float(r[4]) if len(r) > 4 else 0
+                    mins    = int(dur_sec // 60)
+                    secs    = int(dur_sec % 60)
+
+                    results.append({
+                        "video_id"             : vid_id,
+                        "title"                : video_info[vid_id]["title"],
+                        "published"            : video_info[vid_id]["published"],
+                        "views"                : int(r[0])             if len(r) > 0 else 0,
+                        "watch_hours"          : round(float(r[1]) / 60, 1) if len(r) > 1 else 0,
+                        "impressions"          : int(r[2])             if len(r) > 2 else 0,
+                        "ctr"                  : round(float(r[3]) * 100, 2) if len(r) > 3 else 0,
+                        "avg_view_duration_sec": round(dur_sec, 1),
+                        "avg_view_duration_fmt": f"{mins}:{secs:02d}",
+                        "audience_retention"   : round(float(r[5]), 1) if len(r) > 5 else 0,
+                        "subs_gained"          : int(r[6])             if len(r) > 6 else 0,
+                        "returning_viewers"    : 0,
+                        "likes"                : video_info[vid_id]["likes"],
+                        "comments"             : video_info[vid_id]["comments"]
+                    })
+
+            except Exception as e:
+                print(f"  Skipping {vid_id}: {e}")
+                continue
+
+        return results
+
+    except Exception as e:
+        print(f"Error fetching individual metrics: {e}")
+        return []
 
 
 if __name__ == "__main__":
