@@ -15,8 +15,6 @@ app.mount("/static", StaticFiles(directory="ui/static"), name="static")
 templates = Jinja2Templates(directory="ui/templates")
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
 def load_json(path):
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
@@ -41,8 +39,6 @@ def run_agent_in_thread(agent_id):
         from agents.agent5_publisher import run_agent5
         run_agent5()
 
-
-# ── Pages ─────────────────────────────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
@@ -71,17 +67,12 @@ async def dashboard(request: Request):
     )
 
 
-# ── API Endpoints ─────────────────────────────────────────────────────────────
-
 @app.get("/api/analytics")
 async def get_analytics():
     data = load_json("data/analytics_brief.json")
     if data:
         return JSONResponse(content=data)
-    return JSONResponse(
-        content     = {"error": "No analytics data found"},
-        status_code = 404
-    )
+    return JSONResponse(content={"error": "No analytics data found"}, status_code=404)
 
 
 @app.get("/api/ideas")
@@ -89,10 +80,7 @@ async def get_ideas():
     data = load_json("data/content_ideas.json")
     if data:
         return JSONResponse(content=data)
-    return JSONResponse(
-        content     = {"error": "No content ideas found"},
-        status_code = 404
-    )
+    return JSONResponse(content={"error": "No content ideas found"}, status_code=404)
 
 
 @app.get("/api/thumbnails")
@@ -100,10 +88,7 @@ async def get_thumbnails():
     data = load_json("data/thumbnail_ideas.json")
     if data:
         return JSONResponse(content=data)
-    return JSONResponse(
-        content     = {"error": "No thumbnail ideas found"},
-        status_code = 404
-    )
+    return JSONResponse(content={"error": "No thumbnail ideas found"}, status_code=404)
 
 
 @app.get("/api/report")
@@ -113,12 +98,9 @@ async def get_report():
         with open(path, "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
     return HTMLResponse(
-        content = "<p style='padding:20px;font-family:sans-serif;color:#64748b'>"
-                  "No report generated yet. Run Agent 4 first.</p>"
+        content="<p style='padding:20px;font-family:sans-serif;color:#64748b'>No report generated yet.</p>"
     )
 
-
-# ── Run Agent via HTTP POST ───────────────────────────────────────────────────
 
 @app.post("/api/run-agent/{agent_id}")
 async def run_agent_http(agent_id: str):
@@ -132,17 +114,13 @@ async def run_agent_http(agent_id: str):
             except Exception as e:
                 import traceback
                 result["error"] = traceback.format_exc()
-                print("THREAD ERROR:\n", traceback.format_exc())
 
         thread = threading.Thread(target=thread_target)
         thread.start()
         thread.join(timeout=300)
 
         if result["error"]:
-            return JSONResponse(content={
-                "status": "error",
-                "detail": result["error"]
-            })
+            return JSONResponse(content={"status": "error", "detail": result["error"]})
         return JSONResponse(content={
             "status" : "success",
             "agent"  : agent_id,
@@ -151,13 +129,8 @@ async def run_agent_http(agent_id: str):
 
     except Exception as e:
         import traceback
-        return JSONResponse(content={
-            "status": "error",
-            "detail": traceback.format_exc()
-        })
+        return JSONResponse(content={"status": "error", "detail": traceback.format_exc()})
 
-
-# ── Test Endpoint ─────────────────────────────────────────────────────────────
 
 @app.get("/api/test-agent/{agent_id}")
 async def test_agent(agent_id: str):
@@ -177,10 +150,7 @@ async def test_agent(agent_id: str):
         thread.join(timeout=300)
 
         if result["error"]:
-            return JSONResponse(content={
-                "status": "error",
-                "detail": result["error"]
-            })
+            return JSONResponse(content={"status": "error", "detail": result["error"]})
         return JSONResponse(content={
             "status" : "success",
             "agent"  : agent_id,
@@ -189,13 +159,8 @@ async def test_agent(agent_id: str):
 
     except Exception as e:
         import traceback
-        return JSONResponse(content={
-            "status": "error",
-            "detail": traceback.format_exc()
-        })
+        return JSONResponse(content={"status": "error", "detail": traceback.format_exc()})
 
-
-# ── Debug Performance ─────────────────────────────────────────────────────────
 
 @app.get("/api/debug-performance")
 async def debug_performance():
@@ -214,7 +179,7 @@ async def debug_performance():
             ids       = f"channel=={channel_id}",
             startDate = day30ago,
             endDate   = today,
-            metrics   = "views,estimatedMinutesWatched,subscribersGained,impressions,impressionClickThroughRate,averageViewDuration,averageViewPercentage",
+            metrics   = "views,estimatedMinutesWatched,subscribersGained,averageViewDuration,averageViewPercentage",
             dimensions= "day"
         ).execute()
 
@@ -228,12 +193,8 @@ async def debug_performance():
 
     except Exception as e:
         import traceback
-        return JSONResponse(content={
-            "error": traceback.format_exc()
-        })
+        return JSONResponse(content={"error": traceback.format_exc()})
 
-
-# ── WebSocket Agent Runner ────────────────────────────────────────────────────
 
 @app.websocket("/ws/agent/{agent_id}")
 async def run_agent_ws(websocket: WebSocket, agent_id: str):
@@ -274,16 +235,12 @@ async def run_agent_ws(websocket: WebSocket, agent_id: str):
         await websocket.send_text(f"ERROR::{str(e)}")
 
 
-# ── Handoff Agent 1 → Agent 2 ─────────────────────────────────────────────────
-
 @app.post("/api/handoff/agent1-to-agent2")
 async def handoff_to_agent2(request: Request):
     try:
         ideas = load_json("data/content_ideas.json")
         if not ideas:
-            return JSONResponse(content={
-                "error": "No content ideas found. Run Agent 1 first."
-            })
+            return JSONResponse(content={"error": "No content ideas found. Run Agent 1 first."})
 
         plan     = ideas.get("content_plan", {})
         videos   = plan.get("video_ideas",  [])
@@ -321,8 +278,6 @@ Please generate detailed thumbnail concepts for each of these videos and shorts.
         return JSONResponse(content={"error": traceback.format_exc()})
 
 
-# ── Benchmarks ────────────────────────────────────────────────────────────────
-
 @app.get("/api/benchmarks")
 async def get_benchmarks():
     data = load_json("data/benchmarks.json")
@@ -330,24 +285,24 @@ async def get_benchmarks():
         return JSONResponse(content=data)
     defaults = {
         "video": {
-            "impressions"       : 5000,
-            "views"             : 1000,
-            "ctr"               : 4.0,
-            "avg_view_duration" : 180,
+            "impressions"       : 0,
+            "views"             : 2000,
+            "ctr"               : 0,
+            "avg_view_duration" : 300,
             "audience_retention": 40.0,
-            "watch_hours"       : 50,
-            "subs_gained"       : 10,
-            "returning_viewers" : 200
+            "watch_hours"       : 35,
+            "subs_gained"       : 15,
+            "returning_viewers" : 0
         },
         "short": {
-            "impressions"       : 10000,
+            "impressions"       : 0,
             "views"             : 5000,
-            "ctr"               : 6.0,
+            "ctr"               : 0,
             "avg_view_duration" : 30,
             "audience_retention": 60.0,
             "watch_hours"       : 20,
             "subs_gained"       : 5,
-            "returning_viewers" : 500
+            "returning_viewers" : 0
         }
     }
     return JSONResponse(content=defaults)
@@ -407,8 +362,6 @@ async def get_performance(request: Request):
             "detail": traceback.format_exc()
         })
 
-
-# ── Chat Endpoints ────────────────────────────────────────────────────────────
 
 @app.post("/api/chat/agent1")
 async def chat_agent1(request: Request):

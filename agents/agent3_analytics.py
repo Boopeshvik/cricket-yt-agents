@@ -165,10 +165,8 @@ def analyse_comments(comments):
     positive_words = ["super", "great", "excellent", "good", "best",
                       "love", "amazing", "nice", "perfect", "நன்றி",
                       "அருமை", "சூப்பர்", "வாழ்க", "மிகவும்"]
-
     negative_words = ["bad", "worst", "boring", "hate", "dislike",
                       "மோசம்", "கஷ்டம்"]
-
     request_words  = ["please", "make video", "cover", "explain",
                       "பண்ணுங்க", "சொல்லுங்க", "வேணும்"]
 
@@ -244,18 +242,15 @@ def run_agent3():
 
 
 def fetch_performance_metrics(youtube_analytics, channel_id, start_date, end_date, content_type="video"):
-    print(f"Fetching performance metrics ({content_type}s) from {start_date} to {end_date}...")
+    print(f"Fetching performance metrics from {start_date} to {end_date}...")
 
     try:
-        # Build filters based on content type
-        # Fetch all video data without content type filter
-        # (videoType filter not supported for all channels)
         response = youtube_analytics.reports().query(
-            ids=f"channel=={channel_id}",
-            startDate=start_date,
-            endDate=end_date,
-            metrics="views,estimatedMinutesWatched,subscribersGained,impressions,impressionClickThroughRate,averageViewDuration,averageViewPercentage",
-            dimensions="day"
+            ids       = f"channel=={channel_id}",
+            startDate = start_date,
+            endDate   = end_date,
+            metrics   = "views,estimatedMinutesWatched,subscribersGained,averageViewDuration,averageViewPercentage",
+            dimensions= "day"
         ).execute()
 
         rows = response.get("rows", [])
@@ -276,29 +271,26 @@ def fetch_performance_metrics(youtube_analytics, channel_id, start_date, end_dat
                 "content_type"         : content_type
             }
 
-        total_views       = sum(r[1] for r in rows)
-        total_watch_mins  = sum(r[2] for r in rows)
-        total_subs        = sum(r[3] for r in rows)
-        total_impressions = sum(r[4] for r in rows)
-        avg_ctr           = sum(r[5] for r in rows) / len(rows) * 100
-        avg_duration_sec  = sum(r[6] for r in rows) / len(rows)
-        avg_retention     = sum(r[7] for r in rows) / len(rows) if len(rows[0]) > 7 else 0
-        total_returning   = 0
+        total_views      = sum(r[1] for r in rows)
+        total_watch_mins = sum(r[2] for r in rows)
+        total_subs       = sum(r[3] for r in rows)
+        avg_duration_sec = sum(r[4] for r in rows) / len(rows)
+        avg_retention    = sum(r[5] for r in rows) / len(rows) if len(rows[0]) > 5 else 0
 
         mins         = int(avg_duration_sec // 60)
         secs         = int(avg_duration_sec % 60)
         duration_fmt = f"{mins}:{secs:02d}"
 
         return {
-            "impressions"          : int(total_impressions),
+            "impressions"          : 0,
             "views"                : int(total_views),
-            "ctr"                  : round(avg_ctr, 2),
+            "ctr"                  : 0,
             "avg_view_duration_sec": round(avg_duration_sec, 1),
             "avg_view_duration_fmt": duration_fmt,
             "audience_retention"   : round(avg_retention, 1),
             "watch_hours"          : round(total_watch_mins / 60, 1),
             "subs_gained"          : int(total_subs),
-            "returning_viewers"    : int(total_returning),
+            "returning_viewers"    : 0,
             "from_date"            : start_date,
             "to_date"              : end_date,
             "content_type"         : content_type
@@ -390,14 +382,14 @@ def fetch_individual_video_metrics(youtube, youtube_analytics, channel_id, start
                     ids       = f"channel=={channel_id}",
                     startDate = start_date,
                     endDate   = end_date,
-                    metrics   = "views,estimatedMinutesWatched,impressions,impressionClickThroughRate,averageViewDuration,averageViewPercentage,subscribersGained",
+                    metrics   = "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained",
                     filters   = f"video=={vid_id}"
                 ).execute()
 
                 rows = analytics.get("rows", [])
                 if rows:
                     r       = rows[0]
-                    dur_sec = float(r[4]) if len(r) > 4 else 0
+                    dur_sec = float(r[2]) if len(r) > 2 else 0
                     mins    = int(dur_sec // 60)
                     secs    = int(dur_sec % 60)
 
@@ -405,14 +397,14 @@ def fetch_individual_video_metrics(youtube, youtube_analytics, channel_id, start
                         "video_id"             : vid_id,
                         "title"                : video_info[vid_id]["title"],
                         "published"            : video_info[vid_id]["published"],
-                        "views"                : int(r[0])                  if len(r) > 0 else 0,
-                        "watch_hours"          : round(float(r[1]) / 60, 1) if len(r) > 1 else 0,
-                        "impressions"          : int(r[2])                  if len(r) > 2 else 0,
-                        "ctr"                  : round(float(r[3]) * 100, 2) if len(r) > 3 else 0,
+                        "views"                : int(r[0])                   if len(r) > 0 else 0,
+                        "watch_hours"          : round(float(r[1]) / 60, 1)  if len(r) > 1 else 0,
+                        "impressions"          : 0,
+                        "ctr"                  : 0,
                         "avg_view_duration_sec": round(dur_sec, 1),
                         "avg_view_duration_fmt": f"{mins}:{secs:02d}",
-                        "audience_retention"   : round(float(r[5]), 1)      if len(r) > 5 else 0,
-                        "subs_gained"          : int(r[6])                  if len(r) > 6 else 0,
+                        "audience_retention"   : round(float(r[3]), 1)       if len(r) > 3 else 0,
+                        "subs_gained"          : int(r[4])                   if len(r) > 4 else 0,
                         "returning_viewers"    : 0,
                         "likes"                : video_info[vid_id]["likes"],
                         "comments"             : video_info[vid_id]["comments"]
