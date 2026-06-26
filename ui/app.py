@@ -336,24 +336,7 @@ async def get_performance(request: Request):
         channel_stats = fetch_channel_stats(youtube)
         channel_id    = channel_stats["channel_id"]
 
-        consolidated = fetch_performance_metrics(
-            youtube_analytics, channel_id,
-            start_date, end_date, content_type
-        )
 
-        individual = fetch_individual_video_metrics(
-            youtube, youtube_analytics, channel_id,
-            start_date, end_date, content_type
-        )
-
-        return JSONResponse(content={
-            "status"      : "success",
-            "consolidated": consolidated,
-            "individual"  : individual,
-            "start_date"  : start_date,
-            "end_date"    : end_date,
-            "content_type": content_type
-        })
 
     except Exception as e:
         import traceback
@@ -361,7 +344,47 @@ async def get_performance(request: Request):
             "status": "error",
             "detail": traceback.format_exc()
         })
+        individual = fetch_individual_video_metrics(
+            youtube, youtube_analytics, channel_id,
+            start_date, end_date, content_type
+        )
 
+        # Calculate averages from individual video data
+        num_videos = len(individual) if individual else 1
+
+        def avg(key):
+            vals = [v[key] for v in individual if v.get(key, 0) > 0]
+            return round(sum(vals) / len(vals), 1) if vals else 0
+
+        avg_duration_sec = avg("avg_view_duration_sec")
+        mins = int(avg_duration_sec // 60)
+        secs = int(avg_duration_sec % 60)
+
+        consolidated = {
+            "impressions": 0,
+            "views": avg("views"),
+            "ctr": 0,
+            "avg_view_duration_sec": avg_duration_sec,
+            "avg_view_duration_fmt": f"{mins}:{secs:02d}",
+            "audience_retention": avg("audience_retention"),
+            "watch_hours": avg("watch_hours"),
+            "subs_gained": avg("subs_gained"),
+            "returning_viewers": 0,
+            "from_date": start_date,
+            "to_date": end_date,
+            "content_type": content_type,
+            "num_videos": num_videos
+        }
+
+        return JSONResponse(content={
+            "status": "success",
+            "consolidated": consolidated,
+            "individual": individual,
+            "start_date": start_date,
+            "end_date": end_date,
+            "content_type": content_type,
+            "num_videos": num_videos
+        })
 
 @app.post("/api/chat/agent1")
 async def chat_agent1(request: Request):

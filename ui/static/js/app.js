@@ -321,16 +321,21 @@ function renderSummary(consolidated, type) {
     const grid  = document.getElementById('perf-summary-grid');
     const bench = benchmarks[type] || {};
 
-    const metricMap = {
-        impressions       : consolidated.impressions,
-        views             : consolidated.views,
-        ctr               : consolidated.ctr,
-        avg_view_duration : consolidated.avg_view_duration_sec,
-        audience_retention: consolidated.audience_retention,
-        watch_hours       : consolidated.watch_hours,
-        subs_gained       : consolidated.subs_gained,
-        returning_viewers : consolidated.returning_viewers
-    };
+    const METRIC_LABELS = {
+    impressions       : 'Impressions (N/A)',
+    views             : 'Avg Views / Video',
+    ctr               : 'CTR % (N/A)',
+    avg_view_duration : 'Avg Duration / Video',
+    audience_retention: 'Avg Retention %',
+    watch_hours       : 'Avg Watch Hours / Video',
+    subs_gained       : 'Avg Subs / Video',
+    returning_viewers : 'Returning Viewers (N/A)'
+};
+    // Update section title with video count
+    const titleEl = document.querySelector('.perf-section-title');
+    if (titleEl && consolidated.num_videos) {
+        titleEl.innerHTML = `📊 Consolidated Summary <span style="font-size:12px;color:#64748b;font-weight:400">(avg across ${consolidated.num_videos} videos)</span>`;
+    }
 
     grid.innerHTML = METRIC_KEYS.map(key => {
         const actual   = metricMap[key] || 0;
