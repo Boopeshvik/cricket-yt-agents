@@ -80,7 +80,13 @@ def get_categories():
     with get_conn() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("SELECT * FROM fin_categories ORDER BY created_at")
-            return [dict(r) for r in cur.fetchall()]
+            rows = cur.fetchall()
+            result = []
+            for r in rows:
+                d = dict(r)
+                d["created_at"] = str(d["created_at"])[:19] if d.get("created_at") else ""
+                result.append(d)
+            return result
 
 
 def add_category(cat_id, name, color):
