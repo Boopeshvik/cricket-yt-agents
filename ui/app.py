@@ -344,9 +344,12 @@ async def get_performance(request: Request):
             "status": "error",
             "detail": traceback.format_exc()
         })
-        individual = fetch_individual_video_metrics(
-            youtube, youtube_analytics, channel_id,
-            start_date, end_date, content_type
+        # Limit to max 10 videos to prevent timeout on Render free tier
+    individual = fetch_individual_video_metrics(
+              youtube, youtube_analytics, channel_id,
+              start_date, end_date, content_type,
+              max_videos=10
+
         )
 
         # Calculate averages from individual video data

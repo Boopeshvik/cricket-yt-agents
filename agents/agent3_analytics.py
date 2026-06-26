@@ -242,7 +242,11 @@ def run_agent3():
 
 
 def fetch_performance_metrics(youtube_analytics, channel_id, start_date, end_date, content_type="video"):
-    print(f"Fetching performance metrics from {start_date} to {end_date}...")
+    """
+    This function is now only used as fallback.
+    Main consolidated metrics are calculated from individual video data in app.py
+    """
+    print(f"Fetching channel performance metrics from {start_date} to {end_date}...")
 
     try:
         response = youtube_analytics.reports().query(
@@ -250,7 +254,6 @@ def fetch_performance_metrics(youtube_analytics, channel_id, start_date, end_dat
             startDate = start_date,
             endDate   = end_date,
             metrics   = "views,estimatedMinutesWatched,subscribersGained,averageViewDuration,averageViewPercentage",
-            dimensions= "day"
         ).execute()
 
         rows = response.get("rows", [])
@@ -271,11 +274,12 @@ def fetch_performance_metrics(youtube_analytics, channel_id, start_date, end_dat
                 "content_type"         : content_type
             }
 
-        total_views      = sum(r[1] for r in rows)
-        total_watch_mins = sum(r[2] for r in rows)
-        total_subs       = sum(r[3] for r in rows)
-        avg_duration_sec = sum(r[4] for r in rows) / len(rows)
-        avg_retention    = sum(r[5] for r in rows) / len(rows) if len(rows[0]) > 5 else 0
+        r                = rows[0]
+        total_views      = float(r[0])
+        total_watch_mins = float(r[1])
+        total_subs       = float(r[2])
+        avg_duration_sec = float(r[3])
+        avg_retention    = float(r[4])
 
         mins         = int(avg_duration_sec // 60)
         secs         = int(avg_duration_sec % 60)
@@ -315,8 +319,8 @@ def fetch_performance_metrics(youtube_analytics, channel_id, start_date, end_dat
         }
 
 
-def fetch_individual_video_metrics(youtube, youtube_analytics, channel_id, start_date, end_date, content_type="video"):
-    print(f"Fetching individual {content_type} metrics...")
+def fetch_individual_video_metrics(youtube, youtube_analytics, channel_id, start_date, end_date, content_type="video", max_videos=10):
+    print(f"Fetching individual {content_type} metrics (max {max_videos})...")
 
     try:
         search_response = youtube.search().list(
@@ -376,7 +380,7 @@ def fetch_individual_video_metrics(youtube, youtube_analytics, channel_id, start
             return []
 
         results = []
-        for vid_id in video_ids[:20]:
+        for vid_id in video_ids[:max_videos]:
             try:
                 analytics = youtube_analytics.reports().query(
                     ids       = f"channel=={channel_id}",
