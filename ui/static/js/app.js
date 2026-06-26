@@ -7,7 +7,7 @@ function showSection(id, el) {
     if (el) el.classList.add('active');
 }
 
-// ── Format markdown messages ──────────────────────────────────────────────────
+// ── Format markdown ───────────────────────────────────────────────────────────
 
 function formatMessage(text) {
     if (!text) return '';
@@ -23,7 +23,7 @@ function formatMessage(text) {
     return text;
 }
 
-// ── Run Agent via HTTP ────────────────────────────────────────────────────────
+// ── Run Agent ─────────────────────────────────────────────────────────────────
 
 async function runAgent(agentId) {
     const logEl = document.getElementById(`log-${agentId}`) ||
@@ -38,11 +38,8 @@ async function runAgent(agentId) {
     btn.textContent = '⏳ Running...';
 
     const agentNames = {
-        '1': 'Creative Head',
-        '2': 'Visual Designer',
-        '3': 'Analytics Manager',
-        '4': 'Executive Reporter',
-        '5': 'Auto Publisher'
+        '1': 'Creative Head', '2': 'Visual Designer',
+        '3': 'Analytics Manager', '4': 'Executive Reporter', '5': 'Auto Publisher'
     };
 
     logEl.textContent = `Starting Agent ${agentId} — ${agentNames[agentId] || ''}...\nPlease wait, this may take 30–90 seconds...\n`;
@@ -59,16 +56,14 @@ async function runAgent(agentId) {
         const response = await fetch(`/api/run-agent/${agentId}`, { method: 'POST' });
         clearInterval(timer);
         const data = await response.json();
-
         if (data.status === 'success') {
-            logEl.textContent += `\n\n✅ ${data.message}`;
-            logEl.textContent += `\n🔄 Refresh the page to see updated data.`;
+            logEl.textContent += `\n\n✅ ${data.message}\n🔄 Refresh the page to see updated data.`;
         } else {
             logEl.textContent += `\n\n❌ Error: ${data.detail}`;
         }
     } catch (err) {
         clearInterval(timer);
-        logEl.textContent += `\n\n❌ Failed to connect: ${err.message}`;
+        logEl.textContent += `\n\n❌ Failed: ${err.message}`;
     }
 
     btn.disabled    = false;
@@ -128,11 +123,9 @@ async function sendReport() {
     try {
         const response = await fetch('/api/run-agent/4', { method: 'POST' });
         const data     = await response.json();
-        if (data.status === 'success') {
-            status.textContent = '✅ Report sent successfully!';
-        } else {
-            status.textContent = '❌ Error sending report.';
-        }
+        status.textContent = data.status === 'success'
+            ? '✅ Report sent successfully!'
+            : '❌ Error sending report.';
     } catch (err) {
         status.textContent = '❌ Error sending report.';
     }
@@ -143,12 +136,10 @@ function loadReport() {
 }
 
 function copyText(text) {
-    navigator.clipboard.writeText(text).then(() => {
-        alert('Copied to clipboard!');
-    });
+    navigator.clipboard.writeText(text).then(() => alert('Copied to clipboard!'));
 }
 
-// ── Handoff Agent 1 → Agent 2 ─────────────────────────────────────────────────
+// ── Handoff ───────────────────────────────────────────────────────────────────
 
 async function handoffToAgent2() {
     const btn    = document.querySelector('.btn-handoff');
@@ -166,7 +157,6 @@ async function handoffToAgent2() {
             btn.textContent    = '✅ Sent to Agent 2!';
             status.textContent = '✅ Content plan sent! Go to Thumbnails tab to see Agent 2\'s response.';
             status.style.color = '#4ade80';
-
             const chat2 = document.getElementById('chat-box-2');
             if (chat2) {
                 chat2.innerHTML += `
@@ -200,15 +190,16 @@ let benchmarks      = {};
 let currentBenchTab = 'video';
 let sortCol         = 'views';
 let sortAsc         = false;
+let chartInstances  = {};
 
 const METRIC_LABELS = {
     impressions       : 'Impressions',
-    views             : 'Views',
+    views             : 'Avg Views / Video',
     ctr               : 'CTR %',
-    avg_view_duration : 'Avg Duration (sec)',
-    audience_retention: 'Retention %',
-    watch_hours       : 'Watch Hours',
-    subs_gained       : 'Subs Gained',
+    avg_view_duration : 'Avg Duration',
+    audience_retention: 'Avg Retention %',
+    watch_hours       : 'Avg Watch Hours',
+    subs_gained       : 'Avg Subs / Video',
     returning_viewers : 'Returning Viewers'
 };
 
@@ -227,8 +218,8 @@ function setDefaultDates() {
 
 async function loadBenchmarks() {
     try {
-        const res   = await fetch('/api/benchmarks');
-        benchmarks  = await res.json();
+        const res  = await fetch('/api/benchmarks');
+        benchmarks = await res.json();
         renderBenchmarkGrid();
     } catch (e) {
         console.error('Could not load benchmarks', e);
@@ -243,8 +234,7 @@ function renderBenchmarkGrid() {
         <div class="bench-item">
             <div class="bench-item-label">${METRIC_LABELS[key]}</div>
             <input type="number" id="bench-${key}" value="${b[key] || 0}" step="0.1">
-        </div>
-    `).join('');
+        </div>`).join('');
 }
 
 function switchBenchTab(type, btn) {
@@ -283,6 +273,7 @@ async function fetchPerformance() {
     const start = document.getElementById('perf-start').value;
     const end   = document.getElementById('perf-end').value;
     const type  = document.getElementById('perf-type').value;
+    const limit = parseInt(document.getElementById('perf-limit').value) || 10;
 
     if (!start || !end) {
         alert('Please select both start and end dates');
@@ -293,9 +284,7 @@ async function fetchPerformance() {
     document.getElementById('perf-results').style.display = 'none';
 
     try {
-        const limit = parseInt(document.getElementById('perf-limit').value) || 10;
-
-        const res  = await fetch('/api/performance', {
+        const res = await fetch('/api/performance', {
             method : 'POST',
             headers: { 'Content-Type': 'application/json' },
             body   : JSON.stringify({
@@ -309,20 +298,21 @@ async function fetchPerformance() {
         document.getElementById('perf-loading').style.display = 'none';
 
         if (!res.ok) {
-            alert('Server error: ' + res.status + ' ' + res.statusText);
+            alert('Server error: ' + res.status);
             return;
         }
 
         const data = await res.json();
 
         if (!data || data.status === 'error') {
-            alert('Error fetching metrics: ' + (data?.detail || 'Unknown error'));
+            alert('Error: ' + (data?.detail || 'Unknown error'));
             return;
         }
 
         perfData = data;
         renderSummary(data.consolidated, type);
         renderTable(data.individual, type);
+        renderCharts(data.individual);
         document.getElementById('perf-results').style.display = 'block';
 
     } catch (e) {
@@ -334,11 +324,10 @@ async function fetchPerformance() {
 function renderSummary(consolidated, type) {
     const grid  = document.getElementById('perf-summary-grid');
     const bench = benchmarks[type] || {};
+    const title = document.getElementById('perf-summary-title');
 
-    // Update title with video count
-    const titleEl = document.querySelector('.perf-section-title');
-    if (titleEl && consolidated.num_videos) {
-        titleEl.innerHTML = `📊 Consolidated Summary <span style="font-size:12px;color:#64748b;font-weight:400">(avg across ${consolidated.num_videos} videos)</span>`;
+    if (title && consolidated.num_videos) {
+        title.innerHTML = `📊 Consolidated Summary <span style="font-size:12px;color:#64748b;font-weight:400">(avg across ${consolidated.num_videos} videos)</span>`;
     }
 
     const metricMap = {
@@ -355,6 +344,7 @@ function renderSummary(consolidated, type) {
     grid.innerHTML = METRIC_KEYS.map(key => {
         const actual   = metricMap[key] || 0;
         const target   = bench[key] || 1;
+        const isNA     = key === 'impressions' || key === 'ctr' || key === 'returning_viewers';
         const isGood   = actual >= target;
         const pct      = Math.min((actual / target) * 100, 100).toFixed(0);
         const diff     = actual - target;
@@ -363,8 +353,10 @@ function renderSummary(consolidated, type) {
                          ? `${diffSign}${diff.toFixed(2)}`
                          : `${diffSign}${Math.round(diff).toLocaleString()}`;
 
-        let displayVal = actual;
-        if (key === 'ctr' || key === 'audience_retention') {
+        let displayVal;
+        if (isNA) {
+            displayVal = 'N/A';
+        } else if (key === 'audience_retention') {
             displayVal = actual.toFixed(1) + '%';
         } else if (key === 'avg_view_duration') {
             const m = Math.floor(actual / 60);
@@ -376,25 +368,83 @@ function renderSummary(consolidated, type) {
             displayVal = Math.round(actual).toLocaleString();
         }
 
-        // Show N/A for metrics we can't fetch
-        const isNA = key === 'impressions' || key === 'ctr' || key === 'returning_viewers';
-
         return `
-            <div class="perf-metric-card ${isNA ? '' : (isGood ? 'positive' : 'negative')}">
+            <div class="perf-metric-card ${isNA ? 'na-card' : (isGood ? 'positive' : 'negative')}">
                 <div class="metric-status">${isNA ? '—' : (isGood ? '✅' : '❌')}</div>
                 <div class="metric-name">${METRIC_LABELS[key]}</div>
-                <div class="metric-actual" style="${isNA ? 'color:#475569' : ''}">${isNA ? 'N/A' : displayVal}</div>
+                <div class="metric-actual" style="${isNA ? 'color:#475569;font-size:16px' : ''}">${displayVal}</div>
                 <div class="metric-benchmark">${isNA ? 'Not available via API' : 'Target: ' + target.toLocaleString()}</div>
                 ${isNA ? '' : `
                 <div class="metric-bar-bg">
-                    <div class="metric-bar-fill ${isGood ? 'positive' : 'negative'}"
-                         style="width:${pct}%"></div>
+                    <div class="metric-bar-fill ${isGood ? 'positive' : 'negative'}" style="width:${pct}%"></div>
                 </div>
-                <div class="metric-diff ${isGood ? 'positive' : 'negative'}">
-                    ${diffFmt} vs benchmark
-                </div>`}
+                <div class="metric-diff ${isGood ? 'positive' : 'negative'}">${diffFmt} vs target</div>`}
             </div>`;
     }).join('');
+}
+
+function renderCharts(videos) {
+    if (!videos || !videos.length) return;
+
+    const labels = videos.map(v =>
+        v.title.substring(0, 18) + (v.title.length > 18 ? '…' : '')
+    );
+
+    const makeConfig = (data, label, bgColor, borderColor) => ({
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label,
+                data,
+                backgroundColor: bgColor,
+                borderColor,
+                borderWidth: 1,
+                borderRadius: 5
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: {
+                    ticks: { color: '#64748b', font: { size: 9 }, maxRotation: 45 },
+                    grid: { color: '#1e2235' }
+                },
+                y: {
+                    ticks: { color: '#64748b', font: { size: 9 } },
+                    grid: { color: '#1e2235' }
+                }
+            }
+        }
+    });
+
+    // Destroy old charts
+    Object.values(chartInstances).forEach(c => c.destroy());
+    chartInstances = {};
+
+    chartInstances.views = new Chart(
+        document.getElementById('chart-views'),
+        makeConfig(videos.map(v => v.views), 'Views', 'rgba(96,165,250,0.6)', '#3b82f6')
+    );
+
+    chartInstances.duration = new Chart(
+        document.getElementById('chart-duration'),
+        makeConfig(
+            videos.map(v => +(v.avg_view_duration_sec / 60).toFixed(1)),
+            'Duration (mins)', 'rgba(251,146,60,0.6)', '#f97316'
+        )
+    );
+
+    chartInstances.retention = new Chart(
+        document.getElementById('chart-retention'),
+        makeConfig(videos.map(v => v.audience_retention), 'Retention %', 'rgba(74,222,128,0.6)', '#22c55e')
+    );
+
+    chartInstances.watch = new Chart(
+        document.getElementById('chart-watch'),
+        makeConfig(videos.map(v => v.watch_hours), 'Watch Hours', 'rgba(196,181,253,0.6)', '#a78bfa')
+    );
 }
 
 function renderTable(videos, type) {
@@ -411,9 +461,7 @@ function renderTable(videos, type) {
 
     const tbody = document.getElementById('perf-table-body');
     if (!sorted.length) {
-        tbody.innerHTML = `<tr><td colspan="9"
-            style="text-align:center;color:#64748b;padding:24px">
-            No ${type}s found in this date range</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:#64748b;padding:24px">No ${type}s found in this date range</td></tr>`;
         return;
     }
 
@@ -425,17 +473,15 @@ function renderTable(videos, type) {
 
     tbody.innerHTML = sorted.map(v => `
         <tr>
-            <td class="td-title" title="${v.title}">
-                ${v.title.substring(0, 45)}${v.title.length > 45 ? '...' : ''}
-            </td>
+            <td class="td-title" title="${v.title}">${v.title.substring(0, 40)}${v.title.length > 40 ? '...' : ''}</td>
             <td>${v.published}</td>
-            <td class="${cls(v.impressions, 'impressions')}">${v.impressions.toLocaleString()}</td>
             <td class="${cls(v.views, 'views')}">${v.views.toLocaleString()}</td>
-            <td class="${cls(v.ctr, 'ctr')}">${v.ctr.toFixed(1)}%</td>
             <td class="${cls(v.avg_view_duration_sec, 'avg_view_duration')}">${v.avg_view_duration_fmt}</td>
             <td class="${cls(v.audience_retention, 'audience_retention')}">${v.audience_retention.toFixed(1)}%</td>
             <td class="${cls(v.watch_hours, 'watch_hours')}">${v.watch_hours}h</td>
             <td class="${cls(v.subs_gained, 'subs_gained')}">${v.subs_gained}</td>
+            <td>${v.likes.toLocaleString()}</td>
+            <td>${v.comments.toLocaleString()}</td>
         </tr>`
     ).join('');
 }

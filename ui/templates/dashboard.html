@@ -4,12 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BeyoondBoundariess — Agent Dashboard</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=2">
+    <link rel="stylesheet" href="/static/css/style.css?v=3">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
-    <!-- Sidebar -->
     <aside class="sidebar">
         <div class="brand">
             <div class="brand-icon">🏏</div>
@@ -19,26 +19,26 @@
             </div>
         </div>
         <nav class="nav">
-            <a href="#dashboard"  class="nav-item active" onclick="showSection('dashboard', this)">
+            <a href="#dashboard"   class="nav-item active" onclick="showSection('dashboard', this)">
                 <span class="nav-icon">📊</span> Dashboard
             </a>
-            <a href="#agents"     class="nav-item" onclick="showSection('agents', this)">
+            <a href="#agents"      class="nav-item" onclick="showSection('agents', this)">
                 <span class="nav-icon">🤖</span> Run Agents
             </a>
-            <a href="#content"    class="nav-item" onclick="showSection('content', this)">
+            <a href="#content"     class="nav-item" onclick="showSection('content', this)">
                 <span class="nav-icon">💡</span> Content Plan
             </a>
-            <a href="#thumbnails" class="nav-item" onclick="showSection('thumbnails', this)">
+            <a href="#thumbnails"  class="nav-item" onclick="showSection('thumbnails', this)">
                 <span class="nav-icon">🎨</span> Thumbnails
             </a>
-            <a href="#report"     class="nav-item" onclick="showSection('report', this)">
+            <a href="#report"      class="nav-item" onclick="showSection('report', this)">
                 <span class="nav-icon">📧</span> Weekly Report
             </a>
-            <a href="#publisher"  class="nav-item" onclick="showSection('publisher', this)">
+            <a href="#publisher"   class="nav-item" onclick="showSection('publisher', this)">
                 <span class="nav-icon">⬆️</span> Publisher
             </a>
             <a href="#performance" class="nav-item" onclick="showSection('performance', this)">
-               <span class="nav-icon">📈</span> Performance
+                <span class="nav-icon">📈</span> Performance
             </a>
         </nav>
         <div class="sidebar-footer">
@@ -47,7 +47,6 @@
         </div>
     </aside>
 
-    <!-- Main Content -->
     <main class="main">
 
         <!-- ── DASHBOARD ── -->
@@ -63,22 +62,20 @@
             {% set last7  = period.last_7_days %}
             {% set last30 = period.last_30_days %}
 
-            <!-- Milestone -->
             <div class="milestone-card">
                 <div class="milestone-header">
                     <span>🎯 Subscriber Milestone</span>
                     <span class="milestone-count">{{ stats.subscribers }} / 1000</span>
                 </div>
                 <div class="progress-bar">
-                    <div class="progress-fill" style="width: {{ (stats.subscribers / 1000 * 100) | round }}%"></div>
+                    <div class="progress-fill" style="width: {{ [[(stats.subscribers / 1000 * 100)|round, 100]|min, 0]|max }}%"></div>
                 </div>
                 <div class="milestone-footer">
-                    {{ (stats.subscribers / 1000 * 100) | round }}% to goal —
-                    {{ 1000 - stats.subscribers }} subscribers to go!
+                    {{ (stats.subscribers / 1000 * 100)|round }}% to goal —
+                    {{ [1000 - stats.subscribers, 0]|max }} subscribers to go!
                 </div>
             </div>
 
-            <!-- Stats Grid -->
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-icon">👥</div>
@@ -102,7 +99,6 @@
                 </div>
             </div>
 
-            <!-- Period Stats -->
             <div class="period-grid">
                 <div class="period-card">
                     <div class="period-title">📅 Last 7 Days</div>
@@ -150,27 +146,20 @@
                 </div>
             </div>
 
-            <!-- Top Videos -->
             <div class="table-card">
                 <div class="table-title">🏆 Top Performing Videos</div>
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>#</th>
-                            <th>Title</th>
-                            <th>Views</th>
-                            <th>Likes</th>
-                            <th>Comments</th>
-                            <th>Published</th>
+                            <th>#</th><th>Title</th><th>Views</th>
+                            <th>Likes</th><th>Comments</th><th>Published</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for v in analytics.top_videos[:10] %}
                         <tr>
                             <td>{{ loop.index }}</td>
-                            <td class="video-title">
-                                {{ v.title[:60] }}{% if v.title|length > 60 %}...{% endif %}
-                            </td>
+                            <td class="video-title">{{ v.title[:60] }}{% if v.title|length > 60 %}...{% endif %}</td>
                             <td>{{ "{:,}".format(v.views) }}</td>
                             <td>{{ "{:,}".format(v.likes) }}</td>
                             <td>{{ "{:,}".format(v.comments) }}</td>
@@ -197,9 +186,7 @@
                 <h1>Run Agents</h1>
                 <div class="header-sub">Control each agent individually</div>
             </div>
-
             <div class="agents-grid">
-
                 <div class="agent-card">
                     <div class="agent-header">
                         <div class="agent-icon a3">📊</div>
@@ -212,7 +199,6 @@
                     <button class="btn-run" onclick="runAgent('3')">▶ Run Agent 3</button>
                     <div class="agent-log" id="log-3"></div>
                 </div>
-
                 <div class="agent-card">
                     <div class="agent-header">
                         <div class="agent-icon a1">💡</div>
@@ -225,7 +211,6 @@
                     <button class="btn-run" onclick="runAgent('1')">▶ Run Agent 1</button>
                     <div class="agent-log" id="log-1"></div>
                 </div>
-
                 <div class="agent-card">
                     <div class="agent-header">
                         <div class="agent-icon a2">🎨</div>
@@ -238,7 +223,6 @@
                     <button class="btn-run" onclick="runAgent('2')">▶ Run Agent 2</button>
                     <div class="agent-log" id="log-2"></div>
                 </div>
-
                 <div class="agent-card">
                     <div class="agent-header">
                         <div class="agent-icon a4">📧</div>
@@ -251,7 +235,6 @@
                     <button class="btn-run" onclick="runAgent('4')">▶ Run Agent 4</button>
                     <div class="agent-log" id="log-4"></div>
                 </div>
-
                 <div class="agent-card">
                     <div class="agent-header">
                         <div class="agent-icon a5">⬆️</div>
@@ -264,7 +247,6 @@
                     <button class="btn-run" onclick="runAgent('5')">▶ Run Agent 5</button>
                     <div class="agent-log" id="log-5"></div>
                 </div>
-
             </div>
         </section>
 
@@ -277,12 +259,8 @@
 
             {% if ideas %}
             {% set plan = ideas.content_plan %}
+            <div class="generated-at">Last generated: {{ ideas.generated_at }}</div>
 
-            <div class="generated-at">
-                Last generated: {{ ideas.generated_at }}
-            </div>
-
-            <!-- Content Cards -->
             <div class="content-grid">
                 {% for v in plan.video_ideas %}
                 <div class="content-card video-card">
@@ -297,7 +275,6 @@
                     <div class="content-why">💡 {{ v.why_it_will_work }}</div>
                 </div>
                 {% endfor %}
-
                 {% for s in plan.short_ideas %}
                 <div class="content-card short-card">
                     <div class="content-badge short-badge">📱 SHORT</div>
@@ -311,13 +288,11 @@
                 {% endfor %}
             </div>
 
-            <!-- Strategy -->
             <div class="strategy-box">
                 <div class="strategy-title">📌 Weekly Strategy</div>
                 <div class="strategy-text">{{ plan.weekly_strategy }}</div>
             </div>
 
-            <!-- Topics to Avoid -->
             <div class="avoid-box">
                 <div class="avoid-title">🚫 Topics to Avoid</div>
                 <div class="avoid-list">
@@ -336,20 +311,13 @@
             </div>
             {% endif %}
 
-            <!-- Handoff to Agent 2 -->
             <div class="handoff-section">
                 <div class="handoff-title">✅ Happy with the content plan?</div>
-                <div class="handoff-desc">
-                    Send the approved plan to Agent 2 — Visual Designer to generate
-                    thumbnail concepts for all videos automatically.
-                </div>
-                <button class="btn-handoff" onclick="handoffToAgent2()">
-                    🎨 Send to Agent 2 — Visual Designer
-                </button>
+                <div class="handoff-desc">Send the approved plan to Agent 2 — Visual Designer to generate thumbnail concepts.</div>
+                <button class="btn-handoff" onclick="handoffToAgent2()">🎨 Send to Agent 2 — Visual Designer</button>
                 <div class="handoff-status" id="handoff-status"></div>
             </div>
 
-            <!-- Chat with Agent 1 -->
             <div class="chat-section">
                 <div class="chat-title">💬 Chat with Agent 1 — Creative Head</div>
                 <div class="chat-box" id="chat-box-1"></div>
@@ -371,52 +339,33 @@
 
             {% if thumbnails %}
             <div class="generated-at">Last generated: {{ thumbnails.generated_at }}</div>
-
             <div class="thumb-grid">
                 {% for t in thumbnails.thumbnails %}
                 <div class="thumb-card">
                     <div class="thumb-type {{ t.type }}-type">{{ t.type | upper }}</div>
-                    <div class="thumb-title">
-                        {{ t.video_title[:50] }}{% if t.video_title|length > 50 %}...{% endif %}
-                    </div>
+                    <div class="thumb-title">{{ t.video_title[:50] }}{% if t.video_title|length > 50 %}...{% endif %}</div>
                     <div class="thumb-preview" style="background: {{ t.color_scheme.primary }}">
-                        <div class="thumb-text-overlay" style="color: {{ t.color_scheme.text }}">
-                            {{ t.text_overlay }}
-                        </div>
+                        <div class="thumb-text-overlay" style="color: {{ t.color_scheme.text }}">{{ t.text_overlay }}</div>
                     </div>
                     <div class="thumb-details">
-                        <div class="thumb-detail">
-                            <strong>Main Visual:</strong> {{ t.main_visual }}
-                        </div>
-                        <div class="thumb-detail">
-                            <strong>Mood:</strong> {{ t.mood }}
-                        </div>
-                        <div class="thumb-detail">
-                            <strong>Canva Tips:</strong> {{ t.canva_tips }}
-                        </div>
+                        <div class="thumb-detail"><strong>Main Visual:</strong> {{ t.main_visual }}</div>
+                        <div class="thumb-detail"><strong>Mood:</strong> {{ t.mood }}</div>
+                        <div class="thumb-detail"><strong>Canva Tips:</strong> {{ t.canva_tips }}</div>
                         <div class="color-swatches">
-                            <div class="swatch" style="background:{{ t.color_scheme.primary }}"
-                                 title="{{ t.color_scheme.primary }}"></div>
-                            <div class="swatch" style="background:{{ t.color_scheme.secondary }}"
-                                 title="{{ t.color_scheme.secondary }}"></div>
-                            <div class="swatch" style="background:{{ t.color_scheme.accent }}"
-                                 title="{{ t.color_scheme.accent }}"></div>
-                            <div class="swatch" style="background:{{ t.color_scheme.text }}"
-                                 title="{{ t.color_scheme.text }}"></div>
+                            <div class="swatch" style="background:{{ t.color_scheme.primary }}" title="{{ t.color_scheme.primary }}"></div>
+                            <div class="swatch" style="background:{{ t.color_scheme.secondary }}" title="{{ t.color_scheme.secondary }}"></div>
+                            <div class="swatch" style="background:{{ t.color_scheme.accent }}" title="{{ t.color_scheme.accent }}"></div>
+                            <div class="swatch" style="background:{{ t.color_scheme.text }}" title="{{ t.color_scheme.text }}"></div>
                         </div>
                         <div class="ai-prompt">
                             <strong>AI Image Prompt:</strong>
                             <div class="prompt-text">{{ t.ai_image_prompt }}</div>
-                            <button class="btn-copy"
-                                onclick="copyText('{{ t.ai_image_prompt | replace("'", "\\'") }}')">
-                                Copy Prompt
-                            </button>
+                            <button class="btn-copy" onclick="copyText('{{ t.ai_image_prompt | replace("'", "\\'") }}')">Copy Prompt</button>
                         </div>
                     </div>
                 </div>
                 {% endfor %}
             </div>
-
             {% else %}
             <div class="empty-state">
                 <div class="empty-icon">🎨</div>
@@ -426,7 +375,6 @@
             </div>
             {% endif %}
 
-            <!-- Chat with Agent 2 -->
             <div class="chat-section">
                 <div class="chat-title">💬 Chat with Agent 2 — Visual Designer</div>
                 <div class="chat-box" id="chat-box-2"></div>
@@ -461,7 +409,6 @@
                 <h1>Auto Publisher</h1>
                 <div class="header-sub">Schedule and upload videos to YouTube automatically</div>
             </div>
-
             <div class="publisher-info">
                 <div class="info-card">
                     <div class="info-icon">📂</div>
@@ -485,16 +432,13 @@
                     </div>
                 </div>
             </div>
-
             <div class="publisher-actions">
                 <button class="btn-primary" onclick="runAgent('5')">▶ Run Publisher Now</button>
-                <a href="https://docs.google.com/spreadsheets"
-                   target="_blank" class="btn-secondary">
-                    📋 Open Upload Schedule
-                </a>
+                <a href="https://docs.google.com/spreadsheets" target="_blank" class="btn-secondary">📋 Open Upload Schedule</a>
             </div>
             <div class="agent-log" id="log-5-pub"></div>
         </section>
+
         <!-- ── PERFORMANCE REVIEW ── -->
         <section id="performance" class="section">
             <div class="page-header">
@@ -502,7 +446,6 @@
                 <div class="header-sub">Analyse video metrics against benchmarks</div>
             </div>
 
-            <!-- Filters -->
             <div class="perf-filters">
                 <div class="filter-group">
                     <label class="filter-label">Start Date</label>
@@ -513,27 +456,25 @@
                     <input type="date" id="perf-end" class="filter-input">
                 </div>
                 <div class="filter-group">
-    <label class="filter-label">Content Type</label>
-    <select id="perf-type" class="filter-input">
-        <option value="video">Videos Only</option>
-        <option value="short">Shorts Only</option>
-    </select>
-</div>
-<div class="filter-group">
-    <label class="filter-label">No. of Videos</label>
-    <select id="perf-limit" class="filter-input">
-        <option value="5">Last 5</option>
-        <option value="10" selected>Last 10</option>
-        <option value="15">Last 15</option>
-        <option value="20">Last 20</option>
-        <option value="30">Last 30</option>
-    </select>
-</div>
-<button class="btn-fetch" onclick="fetchPerformance()">
-    📊 Fetch Metrics
-</button>
+                    <label class="filter-label">Content Type</label>
+                    <select id="perf-type" class="filter-input">
+                        <option value="video">Videos Only</option>
+                        <option value="short">Shorts Only</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">No. of Videos</label>
+                    <select id="perf-limit" class="filter-input">
+                        <option value="5">Last 5</option>
+                        <option value="10" selected>Last 10</option>
+                        <option value="15">Last 15</option>
+                        <option value="20">Last 20</option>
+                        <option value="30">Last 30</option>
+                    </select>
+                </div>
+                <button class="btn-fetch" onclick="fetchPerformance()">📊 Fetch Metrics</button>
+            </div>
 
-            <!-- Benchmarks Editor -->
             <div class="benchmark-section">
                 <div class="benchmark-header">
                     <div class="benchmark-title">🎯 Benchmarks</div>
@@ -548,17 +489,34 @@
                 <div class="bench-save-status" id="bench-save-status"></div>
             </div>
 
-            <!-- Loading -->
             <div class="perf-loading" id="perf-loading" style="display:none">
                 <div class="loading-spinner"></div>
                 <div class="loading-text">Fetching metrics from YouTube Analytics...</div>
             </div>
 
-            <!-- Results -->
             <div id="perf-results" style="display:none">
 
-                <div class="perf-section-title">📊 Consolidated Summary</div>
-                <div class="perf-summary-grid" id="perf-summary-grid"></div>
+                <div class="perf-section-title" id="perf-summary-title">📊 Consolidated Summary</div>
+                <div class="perf-summary-row" id="perf-summary-grid"></div>
+
+                <div class="charts-row">
+                    <div class="chart-card">
+                        <div class="chart-title">📈 Views per Video</div>
+                        <canvas id="chart-views" height="200"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-title">⏱ Avg Duration per Video (mins)</div>
+                        <canvas id="chart-duration" height="200"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-title">👁 Retention % per Video</div>
+                        <canvas id="chart-retention" height="200"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-title">⌚ Watch Hours per Video</div>
+                        <canvas id="chart-watch" height="200"></canvas>
+                    </div>
+                </div>
 
                 <div class="perf-section-title" style="margin-top:28px">
                     🎬 Individual Video Breakdown
@@ -570,13 +528,13 @@
                             <tr>
                                 <th onclick="sortTable('title')">Title ↕</th>
                                 <th onclick="sortTable('published')">Date ↕</th>
-                                <th onclick="sortTable('impressions')">Impressions ↕</th>
                                 <th onclick="sortTable('views')">Views ↕</th>
-                                <th onclick="sortTable('ctr')">CTR % ↕</th>
                                 <th onclick="sortTable('avg_view_duration_fmt')">Avg Duration ↕</th>
                                 <th onclick="sortTable('audience_retention')">Retention % ↕</th>
                                 <th onclick="sortTable('watch_hours')">Watch Hrs ↕</th>
                                 <th onclick="sortTable('subs_gained')">Subs ↕</th>
+                                <th onclick="sortTable('likes')">Likes ↕</th>
+                                <th onclick="sortTable('comments')">Comments ↕</th>
                             </tr>
                         </thead>
                         <tbody id="perf-table-body"></tbody>
@@ -584,16 +542,14 @@
                 </div>
 
                 <div class="export-row">
-                    <button class="btn-export" onclick="exportPDF()">
-                        📄 Export as PDF
-                    </button>
-                    <div class="export-sub">Clean meeting-ready report with summary & video breakdown</div>
+                    <button class="btn-export" onclick="exportPDF()">📄 Export as PDF</button>
+                    <div class="export-sub">Meeting-ready report with charts & video breakdown</div>
                 </div>
 
             </div>
         </section>
-    </main>
 
+    </main>
 
     <script src="/static/js/app.js"></script>
 </body>
