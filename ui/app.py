@@ -14,6 +14,16 @@ app = FastAPI(title="BeyoondBoundariess Agent System")
 app.mount("/static", StaticFiles(directory="ui/static"), name="static")
 templates = Jinja2Templates(directory="ui/templates")
 
+# Initialize database on startup
+try:
+    from utils.db import init_db
+    init_db()
+    DB_AVAILABLE = True
+    print("Database connected ✅")
+except Exception as e:
+    print(f"Database not available: {e}")
+    DB_AVAILABLE = False
+
 
 def load_json(path):
     if os.path.exists(path):
@@ -39,6 +49,8 @@ def run_agent_in_thread(agent_id):
         from agents.agent5_publisher import run_agent5
         run_agent5()
 
+
+# ── Pages ─────────────────────────────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
@@ -66,6 +78,8 @@ async def dashboard(request: Request):
         }
     )
 
+
+# ── API Endpoints ─────────────────────────────────────────────────────────────
 
 @app.get("/api/analytics")
 async def get_analytics():
@@ -101,6 +115,8 @@ async def get_report():
         content="<p style='padding:20px;font-family:sans-serif;color:#64748b'>No report generated yet.</p>"
     )
 
+
+# ── Run Agent ─────────────────────────────────────────────────────────────────
 
 @app.post("/api/run-agent/{agent_id}")
 async def run_agent_http(agent_id: str):
@@ -162,6 +178,8 @@ async def test_agent(agent_id: str):
         return JSONResponse(content={"status": "error", "detail": traceback.format_exc()})
 
 
+# ── Debug ─────────────────────────────────────────────────────────────────────
+
 @app.get("/api/debug-performance")
 async def debug_performance():
     try:
@@ -195,6 +213,8 @@ async def debug_performance():
         import traceback
         return JSONResponse(content={"error": traceback.format_exc()})
 
+
+# ── WebSocket ─────────────────────────────────────────────────────────────────
 
 @app.websocket("/ws/agent/{agent_id}")
 async def run_agent_ws(websocket: WebSocket, agent_id: str):
@@ -234,6 +254,8 @@ async def run_agent_ws(websocket: WebSocket, agent_id: str):
     except Exception as e:
         await websocket.send_text(f"ERROR::{str(e)}")
 
+
+# ── Handoff ───────────────────────────────────────────────────────────────────
 
 @app.post("/api/handoff/agent1-to-agent2")
 async def handoff_to_agent2(request: Request):
@@ -278,11 +300,23 @@ Please generate detailed thumbnail concepts for each of these videos and shorts.
         return JSONResponse(content={"error": traceback.format_exc()})
 
 
+# ── Benchmarks ────────────────────────────────────────────────────────────────
+
 @app.get("/api/benchmarks")
 async def get_benchmarks():
+    if DB_AVAILABLE:
+        try:
+            from utils.db import kv_get
+            data = kv_get("benchmarks")
+            if data:
+                return JSONResponse(content=data)
+        except Exception:
+            pass
+
     data = load_json("data/benchmarks.json")
     if data:
         return JSONResponse(content=data)
+
     defaults = {
         "video": {
             "impressions"       : 0,
@@ -311,11 +345,22 @@ async def get_benchmarks():
 @app.post("/api/benchmarks")
 async def save_benchmarks(request: Request):
     body = await request.json()
+
+    if DB_AVAILABLE:
+        try:
+            from utils.db import kv_set
+            kv_set("benchmarks", body)
+            return JSONResponse(content={"status": "saved"})
+        except Exception:
+            pass
+
     os.makedirs("data", exist_ok=True)
     with open("data/benchmarks.json", "w") as f:
         json.dump(body, f, indent=2)
     return JSONResponse(content={"status": "saved"})
 
+
+# ── Performance ───────────────────────────────────────────────────────────────
 
 @app.post("/api/performance")
 async def get_performance(request: Request):
@@ -388,27 +433,23 @@ async def get_performance(request: Request):
 
 # ── Financials ────────────────────────────────────────────────────────────────
 
-FINANCIALS_FILE = "data/financials.json"
-
-DEFAULT_FINANCIALS = {
-    "categories": [
-        {"id": "cat_1", "name": "Editor Salary",   "color": "#3b82f6"},
-        {"id": "cat_2", "name": "Riverside",        "color": "#f97316"},
-        {"id": "cat_3", "name": "CapCut",           "color": "#a78bfa"},
-        {"id": "cat_4", "name": "Canva",            "color": "#22c55e"}
-    ],
-    "entries": []
-}
+FINANCIALS_FILE    = "data/financials.json"
+DEFAULT_CATEGORIES = [
+    {"id": "cat_1", "name": "Editor Salary", "color": "#3b82f6"},
+    {"id": "cat_2", "name": "Riverside",     "color": "#f97316"},
+    {"id": "cat_3", "name": "CapCut",        "color": "#a78bfa"},
+    {"id": "cat_4", "name": "Canva",         "color": "#22c55e"}
+]
 
 
-def load_financials():
+def load_financials_file():
     data = load_json(FINANCIALS_FILE)
     if not data:
-        return DEFAULT_FINANCIALS.copy()
+        return {"categories": DEFAULT_CATEGORIES, "entries": []}
     return data
 
 
-def save_financials_data(data):
+def save_financials_file(data):
     os.makedirs("data", exist_ok=True)
     with open(FINANCIALS_FILE, "w") as f:
         json.dump(data, f, indent=2)
@@ -416,27 +457,42 @@ def save_financials_data(data):
 
 @app.get("/api/financials")
 async def get_financials():
-    return JSONResponse(content=load_financials())
+    try:
+        if DB_AVAILABLE:
+            from utils.db import get_categories, get_entries
+            return JSONResponse(content={
+                "categories": get_categories(),
+                "entries"   : get_entries()
+            })
+        return JSONResponse(content=load_financials_file())
+    except Exception as e:
+        import traceback
+        return JSONResponse(content={"error": traceback.format_exc()})
 
 
 @app.post("/api/financials/entry")
 async def add_entry(request: Request):
     try:
-        body = await request.json()
-        data = load_financials()
+        body     = await request.json()
+        entry_id = f"entry_{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+        cat_id   = body.get("category_id")
+        amount   = float(body.get("amount", 0))
+        month    = body.get("month")
+        note     = body.get("note", "")
 
-        entry = {
-            "id"         : f"entry_{datetime.now().strftime('%Y%m%d%H%M%S%f')}",
-            "category_id": body.get("category_id"),
-            "amount"     : float(body.get("amount", 0)),
-            "month"      : body.get("month"),
-            "note"       : body.get("note", ""),
-            "created_at" : datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
+        if DB_AVAILABLE:
+            from utils.db import add_entry as db_add
+            db_add(entry_id, cat_id, amount, month, note)
+        else:
+            data = load_financials_file()
+            data["entries"].append({
+                "id": entry_id, "category_id": cat_id,
+                "amount": amount, "month": month, "note": note,
+                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
+            save_financials_file(data)
 
-        data["entries"].append(entry)
-        save_financials_data(data)
-        return JSONResponse(content={"status": "success", "entry": entry})
+        return JSONResponse(content={"status": "success", "id": entry_id})
 
     except Exception as e:
         import traceback
@@ -444,11 +500,15 @@ async def add_entry(request: Request):
 
 
 @app.delete("/api/financials/entry/{entry_id}")
-async def delete_entry(entry_id: str):
+async def delete_entry_endpoint(entry_id: str):
     try:
-        data = load_financials()
-        data["entries"] = [e for e in data["entries"] if e["id"] != entry_id]
-        save_financials_data(data)
+        if DB_AVAILABLE:
+            from utils.db import delete_entry as db_del
+            db_del(entry_id)
+        else:
+            data = load_financials_file()
+            data["entries"] = [e for e in data["entries"] if e["id"] != entry_id]
+            save_financials_file(data)
         return JSONResponse(content={"status": "success"})
     except Exception as e:
         import traceback
@@ -456,23 +516,26 @@ async def delete_entry(entry_id: str):
 
 
 @app.post("/api/financials/category")
-async def add_category(request: Request):
+async def add_category_endpoint(request: Request):
     try:
-        body = await request.json()
-        data = load_financials()
+        body   = await request.json()
+        colors = ["#3b82f6","#f97316","#a78bfa","#22c55e",
+                  "#f43f5e","#eab308","#06b6d4","#ec4899"]
+        cat_id = f"cat_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        name   = body.get("name", "New Category")
 
-        colors = ["#3b82f6","#f97316","#a78bfa","#22c55e","#f43f5e","#eab308","#06b6d4","#ec4899"]
-        color  = colors[len(data["categories"]) % len(colors)]
+        if DB_AVAILABLE:
+            from utils.db import get_categories, add_category as db_add_cat
+            existing = get_categories()
+            color    = colors[len(existing) % len(colors)]
+            db_add_cat(cat_id, name, color)
+        else:
+            data  = load_financials_file()
+            color = colors[len(data["categories"]) % len(colors)]
+            data["categories"].append({"id": cat_id, "name": name, "color": color})
+            save_financials_file(data)
 
-        category = {
-            "id"   : f"cat_{datetime.now().strftime('%Y%m%d%H%M%S')}",
-            "name" : body.get("name", "New Category"),
-            "color": body.get("color", color)
-        }
-
-        data["categories"].append(category)
-        save_financials_data(data)
-        return JSONResponse(content={"status": "success", "category": category})
+        return JSONResponse(content={"status": "success", "id": cat_id})
 
     except Exception as e:
         import traceback
@@ -480,18 +543,24 @@ async def add_category(request: Request):
 
 
 @app.put("/api/financials/category/{cat_id}")
-async def update_category(cat_id: str, request: Request):
+async def update_category_endpoint(cat_id: str, request: Request):
     try:
-        body = await request.json()
-        data = load_financials()
+        body  = await request.json()
+        name  = body.get("name")
+        color = body.get("color")
 
-        for cat in data["categories"]:
-            if cat["id"] == cat_id:
-                cat["name"]  = body.get("name",  cat["name"])
-                cat["color"] = body.get("color", cat["color"])
-                break
+        if DB_AVAILABLE:
+            from utils.db import update_category as db_upd_cat
+            db_upd_cat(cat_id, name, color)
+        else:
+            data = load_financials_file()
+            for cat in data["categories"]:
+                if cat["id"] == cat_id:
+                    cat["name"]  = name  or cat["name"]
+                    cat["color"] = color or cat["color"]
+                    break
+            save_financials_file(data)
 
-        save_financials_data(data)
         return JSONResponse(content={"status": "success"})
 
     except Exception as e:
@@ -500,13 +569,19 @@ async def update_category(cat_id: str, request: Request):
 
 
 @app.delete("/api/financials/category/{cat_id}")
-async def delete_category(cat_id: str):
+async def delete_category_endpoint(cat_id: str):
     try:
-        data = load_financials()
-        data["categories"] = [c for c in data["categories"] if c["id"] != cat_id]
-        data["entries"]    = [e for e in data["entries"] if e["category_id"] != cat_id]
-        save_financials_data(data)
+        if DB_AVAILABLE:
+            from utils.db import delete_category as db_del_cat
+            db_del_cat(cat_id)
+        else:
+            data = load_financials_file()
+            data["categories"] = [c for c in data["categories"] if c["id"] != cat_id]
+            data["entries"]    = [e for e in data["entries"] if e["category_id"] != cat_id]
+            save_financials_file(data)
+
         return JSONResponse(content={"status": "success"})
+
     except Exception as e:
         import traceback
         return JSONResponse(content={"status": "error", "detail": traceback.format_exc()})
@@ -515,26 +590,29 @@ async def delete_category(cat_id: str):
 @app.get("/api/financials/roi")
 async def get_roi():
     try:
-        fin      = load_financials()
-        analytics = load_json("data/analytics_brief.json")
+        if DB_AVAILABLE:
+            from utils.db import get_entries as db_get_entries
+            entries = db_get_entries()
+        else:
+            entries = load_financials_file().get("entries", [])
 
-        total_spend = sum(e["amount"] for e in fin["entries"])
+        total_spend = sum(e["amount"] for e in entries)
+        analytics   = load_json("data/analytics_brief.json")
 
         if analytics:
-            stats = analytics.get("channel_stats", {})
-            period = analytics.get("period_stats", {})
+            stats       = analytics.get("channel_stats", {})
+            period      = analytics.get("period_stats", {})
             subscribers = stats.get("subscribers", 0)
             total_views = stats.get("total_views", 0)
-            # Use 30-day watch hours × estimated months active as proxy for total
-            monthly_wh = period.get("last_30_days", {}).get("watch_hours", 0)
-            watch_hours = monthly_wh  # use monthly for cost per watch hr
+            watch_hours = period.get("last_30_days", {}).get("watch_hours", 0)
         else:
             subscribers = total_views = watch_hours = 0
 
-        cost_per_sub       = round(total_spend / subscribers, 2)       if subscribers  > 0 else 0
-        cost_per_1k_views  = round((total_spend / total_views) * 1000, 2) if total_views > 0 else 0
-        cost_per_watch_hr  = round(total_spend / watch_hours, 2)       if watch_hours  > 0 else 0
-        projected_revenue  = round(total_views * 3 / 1000, 2)
+        cost_per_sub      = round(total_spend / subscribers,         2) if subscribers > 0 else 0
+        cost_per_1k_views = round((total_spend / total_views) * 1000, 2) if total_views > 0 else 0
+        cost_per_watch_hr = round(total_spend / watch_hours,         2) if watch_hours > 0 else 0
+        projected_revenue = round(total_views * 3 / 1000,            2)
+        roi_pct           = round((projected_revenue / total_spend) * 100, 1) if total_spend > 0 else 0
 
         return JSONResponse(content={
             "total_spend"      : round(total_spend, 2),
@@ -545,7 +623,7 @@ async def get_roi():
             "cost_per_1k_views": cost_per_1k_views,
             "cost_per_watch_hr": cost_per_watch_hr,
             "projected_revenue": projected_revenue,
-            "roi_pct"          : round((projected_revenue / total_spend) * 100, 1) if total_spend > 0 else 0
+            "roi_pct"          : roi_pct
         })
 
     except Exception as e:
