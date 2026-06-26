@@ -336,11 +336,15 @@ async def get_performance(request: Request):
         channel_id    = channel_stats["channel_id"]
 
         # Fetch individual video metrics (max 10 to avoid timeout)
+        max_videos = body.get("max_videos", 10)
+
+        # Fetch individual video metrics
         individual = fetch_individual_video_metrics(
             youtube, youtube_analytics, channel_id,
             start_date, end_date, content_type,
-            max_videos=10
+            max_videos=max_videos
         )
+
 
         # Calculate averages from individual video data
         num_videos = len(individual) if individual else 1

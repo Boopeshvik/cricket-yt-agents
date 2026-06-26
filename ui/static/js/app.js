@@ -293,10 +293,17 @@ async function fetchPerformance() {
     document.getElementById('perf-results').style.display = 'none';
 
     try {
+        const limit = parseInt(document.getElementById('perf-limit').value) || 10;
+
         const res  = await fetch('/api/performance', {
             method : 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body   : JSON.stringify({ start_date: start, end_date: end, content_type: type })
+            body   : JSON.stringify({
+                start_date  : start,
+                end_date    : end,
+                content_type: type,
+                max_videos  : limit
+            })
         });
 
         document.getElementById('perf-loading').style.display = 'none';

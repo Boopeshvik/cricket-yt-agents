@@ -513,16 +513,25 @@
                     <input type="date" id="perf-end" class="filter-input">
                 </div>
                 <div class="filter-group">
-                    <label class="filter-label">Content Type</label>
-                    <select id="perf-type" class="filter-input">
-                        <option value="video">Videos Only</option>
-                        <option value="short">Shorts Only</option>
-                    </select>
-                </div>
-                <button class="btn-fetch" onclick="fetchPerformance()">
-                    📊 Fetch Metrics
-                </button>
-            </div>
+    <label class="filter-label">Content Type</label>
+    <select id="perf-type" class="filter-input">
+        <option value="video">Videos Only</option>
+        <option value="short">Shorts Only</option>
+    </select>
+</div>
+<div class="filter-group">
+    <label class="filter-label">No. of Videos</label>
+    <select id="perf-limit" class="filter-input">
+        <option value="5">Last 5</option>
+        <option value="10" selected>Last 10</option>
+        <option value="15">Last 15</option>
+        <option value="20">Last 20</option>
+        <option value="30">Last 30</option>
+    </select>
+</div>
+<button class="btn-fetch" onclick="fetchPerformance()">
+    📊 Fetch Metrics
+</button>
 
             <!-- Benchmarks Editor -->
             <div class="benchmark-section">
