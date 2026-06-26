@@ -525,14 +525,125 @@ async function loadROI() {
         const res  = await fetch('/api/financials/roi');
         const data = await res.json();
 
-        document.getElementById('roi-total-spend').textContent  = `£${data.total_spend.toFixed(2)}`;
-        document.getElementById('roi-cost-per-sub').textContent = `£${data.cost_per_sub.toFixed(2)}`;
-        document.getElementById('roi-cost-per-1k').textContent  = `£${data.cost_per_1k_views.toFixed(2)}`;
-        document.getElementById('roi-cost-per-hr').textContent  = `£${data.cost_per_watch_hr.toFixed(2)}`;
-        document.getElementById('roi-projected').textContent    = `£${data.projected_revenue.toFixed(2)}`;
-        document.getElementById('roi-pct').textContent          = `${data.roi_pct}%`;
+        renderROICard('roi-total-spend',  `£${data.total_spend.toFixed(2)}`,  'neutral', 'total_spend',  data);
+        renderROICard('roi-cost-per-sub', `£${data.cost_per_sub.toFixed(2)}`, getRating('cost_per_sub', data.cost_per_sub), 'cost_per_sub', data);
+        renderROICard('roi-cost-per-1k',  `£${data.cost_per_1k_views.toFixed(2)}`, getRating('cost_per_1k', data.cost_per_1k_views), 'cost_per_1k', data);
+        renderROICard('roi-cost-per-hr',  `£${data.cost_per_watch_hr.toFixed(2)}`, getRating('cost_per_hr', data.cost_per_watch_hr), 'cost_per_hr', data);
+        renderROICard('roi-projected',    `£${data.projected_revenue.toFixed(2)}`, getRating('projected_revenue', data.projected_revenue, data.total_spend), 'projected_revenue', data);
+        renderROICard('roi-pct',          `${data.roi_pct}%`, getRating('roi_pct', data.roi_pct), 'roi_pct', data);
+
     } catch (e) {
         console.error('Could not load ROI', e);
+    }
+}
+
+function getRating(metric, value, extra) {
+    switch (metric) {
+        case 'cost_per_sub':
+            return value === 0 ? 'neutral' : value < 1 ? 'good' : value <= 3 ? 'avg' : 'bad';
+        case 'cost_per_1k':
+            return value === 0 ? 'neutral' : value < 3 ? 'good' : value <= 8 ? 'avg' : 'bad';
+        case 'cost_per_hr':
+            return value === 0 ? 'neutral' : value < 5 ? 'good' : value <= 15 ? 'avg' : 'bad';
+        case 'projected_revenue':
+            return value === 0 ? 'neutral' : value >= extra ? 'good' : value >= extra * 0.5 ? 'avg' : 'bad';
+        case 'roi_pct':
+            return value === 0 ? 'neutral' : value >= 100 ? 'good' : value >= 50 ? 'avg' : 'bad';
+        default:
+            return 'neutral';
+    }
+}
+
+const ROI_TOOLTIPS = {
+    total_spend: {
+        title: 'Total Spend',
+        desc : 'Sum of all logged expenses so far.',
+        bench: 'Informational — no good/bad threshold.'
+    },
+    cost_per_sub: {
+        title: 'Cost per Subscriber',
+        desc : 'Total spend ÷ current subscribers.',
+        bench: '🟢 Good: < £1.00\n🟡 Avg: £1.00 – £3.00\n🔴 Bad: > £3.00\n\nIndustry avg for organic content: £1–£2'
+    },
+    cost_per_1k: {
+        title: 'Cost per 1K Views',
+        desc : '(Total spend ÷ total views) × 1,000.',
+        bench: '🟢 Good: < £3.00\n🟡 Avg: £3.00 – £8.00\n🔴 Bad: > £8.00\n\nYouTube paid ads typically cost £5–£15 per 1K views'
+    },
+    cost_per_hr: {
+        title: 'Cost per Watch Hour',
+        desc : 'Total spend ÷ watch hours (last 30 days).',
+        bench: '🟢 Good: < £5.00\n🟡 Avg: £5.00 – £15.00\n🔴 Bad: > £15.00'
+    },
+    projected_revenue: {
+        title: 'Projected Revenue',
+        desc : 'Total views × £3 RPM ÷ 1,000.\nEstimated earnings if monetized today (Tamil cricket niche: £2–£5 RPM).',
+        bench: '🟢 Good: > Total Spend (profitable)\n🟡 Avg: 50–100% of Total Spend\n🔴 Bad: < 50% of Total Spend'
+    },
+    roi_pct: {
+        title: 'Projected ROI %',
+        desc : '(Projected Revenue ÷ Total Spend) × 100.',
+        bench: '🟢 Good: > 100% (you\'d profit if monetized)\n🟡 Avg: 50–100%\n🔴 Bad: < 50%'
+    }
+};
+
+function renderROICard(elementId, value, rating, metricKey, data) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+
+    const ratingConfig = {
+        good   : { label: '🟢 Good',    color: '#22c55e', border: 'rgba(34,197,94,0.4)',   bg: 'rgba(34,197,94,0.08)'   },
+        avg    : { label: '🟡 Average',  color: '#eab308', border: 'rgba(234,179,8,0.4)',   bg: 'rgba(234,179,8,0.08)'   },
+        bad    : { label: '🔴 Bad',      color: '#ef4444', border: 'rgba(239,68,68,0.4)',   bg: 'rgba(239,68,68,0.08)'   },
+        neutral: { label: '',            color: '#94a3b8', border: '#2d3148',               bg: 'transparent'            }
+    };
+
+    const cfg     = ratingConfig[rating] || ratingConfig.neutral;
+    const tooltip = ROI_TOOLTIPS[metricKey] || {};
+
+    el.closest('.roi-card').style.borderColor       = cfg.border;
+    el.closest('.roi-card').style.backgroundColor   = cfg.bg;
+
+    el.textContent = value;
+    el.style.color = rating === 'neutral' ? '#fff' : cfg.color;
+
+    // Add rating badge and tooltip to parent card
+    const card = el.closest('.roi-card');
+    card.style.position = 'relative';
+    card.style.cursor   = 'pointer';
+
+    // Remove existing badge if any
+    const existingBadge   = card.querySelector('.roi-badge');
+    const existingTooltip = card.querySelector('.roi-tooltip');
+    if (existingBadge)   existingBadge.remove();
+    if (existingTooltip) existingTooltip.remove();
+
+    // Add rating badge
+    if (cfg.label) {
+        const badge = document.createElement('div');
+        badge.className   = 'roi-badge';
+        badge.textContent = cfg.label;
+        badge.style.cssText = `
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 11px;
+            font-weight: 600;
+            color: ${cfg.color};
+        `;
+        card.appendChild(badge);
+    }
+
+    // Add tooltip
+    if (tooltip.title) {
+        const tip = document.createElement('div');
+        tip.className = 'roi-tooltip';
+        tip.innerHTML = `
+            <div class="roi-tip-title">${tooltip.title}</div>
+            <div class="roi-tip-desc">${tooltip.desc.replace(/\n/g, '<br>')}</div>
+            <div class="roi-tip-bench">${tooltip.bench.replace(/\n/g, '<br>')}</div>
+        `;
+        card.appendChild(tip);
     }
 }
 

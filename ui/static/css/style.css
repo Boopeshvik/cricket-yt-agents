@@ -978,3 +978,59 @@ body {
     gap: 10px;
     align-items: center;
 }
+/* ── ROI Card Ratings & Tooltips ─────────────────────── */
+
+.roi-card {
+    position: relative;
+    cursor: pointer;
+    transition: border-color 0.3s, background-color 0.3s;
+}
+
+.roi-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.roi-tooltip {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e2235;
+    border: 1px solid #3d4568;
+    border-radius: 10px;
+    padding: 12px 14px;
+    width: 260px;
+    z-index: 999;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    text-align: left;
+    pointer-events: none;
+}
+
+.roi-card:hover .roi-tooltip { display: block; }
+
+.roi-tip-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 6px;
+}
+
+.roi-tip-desc {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-bottom: 10px;
+    line-height: 1.5;
+}
+
+.roi-tip-bench {
+    font-size: 11px;
+    color: #cbd5e1;
+    line-height: 1.8;
+    border-top: 1px solid #2d3148;
+    padding-top: 8px;
+}
