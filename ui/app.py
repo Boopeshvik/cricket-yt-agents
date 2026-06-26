@@ -328,7 +328,6 @@ async def get_performance(request: Request):
         from utils.google_auth import get_google_services
         from agents.agent3_analytics import (
             fetch_channel_stats,
-            fetch_performance_metrics,
             fetch_individual_video_metrics
         )
 
@@ -336,20 +335,11 @@ async def get_performance(request: Request):
         channel_stats = fetch_channel_stats(youtube)
         channel_id    = channel_stats["channel_id"]
 
-
-
-    except Exception as e:
-        import traceback
-        return JSONResponse(content={
-            "status": "error",
-            "detail": traceback.format_exc()
-        })
-        # Limit to max 10 videos to prevent timeout on Render free tier
-    individual = fetch_individual_video_metrics(
-              youtube, youtube_analytics, channel_id,
-              start_date, end_date, content_type,
-              max_videos=10
-
+        # Fetch individual video metrics (max 10 to avoid timeout)
+        individual = fetch_individual_video_metrics(
+            youtube, youtube_analytics, channel_id,
+            start_date, end_date, content_type,
+            max_videos=10
         )
 
         # Calculate averages from individual video data
@@ -364,30 +354,38 @@ async def get_performance(request: Request):
         secs = int(avg_duration_sec % 60)
 
         consolidated = {
-            "impressions": 0,
-            "views": avg("views"),
-            "ctr": 0,
+            "impressions"          : 0,
+            "views"                : avg("views"),
+            "ctr"                  : 0,
             "avg_view_duration_sec": avg_duration_sec,
             "avg_view_duration_fmt": f"{mins}:{secs:02d}",
-            "audience_retention": avg("audience_retention"),
-            "watch_hours": avg("watch_hours"),
-            "subs_gained": avg("subs_gained"),
-            "returning_viewers": 0,
-            "from_date": start_date,
-            "to_date": end_date,
-            "content_type": content_type,
-            "num_videos": num_videos
+            "audience_retention"   : avg("audience_retention"),
+            "watch_hours"          : avg("watch_hours"),
+            "subs_gained"          : avg("subs_gained"),
+            "returning_viewers"    : 0,
+            "from_date"            : start_date,
+            "to_date"              : end_date,
+            "content_type"         : content_type,
+            "num_videos"           : num_videos
         }
 
         return JSONResponse(content={
-            "status": "success",
+            "status"      : "success",
             "consolidated": consolidated,
-            "individual": individual,
-            "start_date": start_date,
-            "end_date": end_date,
+            "individual"  : individual,
+            "start_date"  : start_date,
+            "end_date"    : end_date,
             "content_type": content_type,
-            "num_videos": num_videos
+            "num_videos"  : num_videos
         })
+
+    except Exception as e:
+        import traceback
+        return JSONResponse(content={
+            "status": "error",
+            "detail": traceback.format_exc()
+        })
+
 
 @app.post("/api/chat/agent1")
 async def chat_agent1(request: Request):
