@@ -323,6 +323,7 @@ async def get_performance(request: Request):
     start_date   = body.get("start_date")
     end_date     = body.get("end_date")
     content_type = body.get("content_type", "video")
+    max_videos   = body.get("max_videos", 10)
 
     try:
         from utils.google_auth import get_google_services
@@ -335,18 +336,12 @@ async def get_performance(request: Request):
         channel_stats = fetch_channel_stats(youtube)
         channel_id    = channel_stats["channel_id"]
 
-        # Fetch individual video metrics (max 10 to avoid timeout)
-        max_videos = body.get("max_videos", 10)
-
-        # Fetch individual video metrics
         individual = fetch_individual_video_metrics(
             youtube, youtube_analytics, channel_id,
             start_date, end_date, content_type,
             max_videos=max_videos
         )
 
-
-        # Calculate averages from individual video data
         num_videos = len(individual) if individual else 1
 
         def avg(key):
@@ -390,6 +385,173 @@ async def get_performance(request: Request):
             "detail": traceback.format_exc()
         })
 
+
+# ── Financials ────────────────────────────────────────────────────────────────
+
+FINANCIALS_FILE = "data/financials.json"
+
+DEFAULT_FINANCIALS = {
+    "categories": [
+        {"id": "cat_1", "name": "Editor Salary",   "color": "#3b82f6"},
+        {"id": "cat_2", "name": "Riverside",        "color": "#f97316"},
+        {"id": "cat_3", "name": "CapCut",           "color": "#a78bfa"},
+        {"id": "cat_4", "name": "Canva",            "color": "#22c55e"}
+    ],
+    "entries": []
+}
+
+
+def load_financials():
+    data = load_json(FINANCIALS_FILE)
+    if not data:
+        return DEFAULT_FINANCIALS.copy()
+    return data
+
+
+def save_financials_data(data):
+    os.makedirs("data", exist_ok=True)
+    with open(FINANCIALS_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+@app.get("/api/financials")
+async def get_financials():
+    return JSONResponse(content=load_financials())
+
+
+@app.post("/api/financials/entry")
+async def add_entry(request: Request):
+    try:
+        body = await request.json()
+        data = load_financials()
+
+        entry = {
+            "id"         : f"entry_{datetime.now().strftime('%Y%m%d%H%M%S%f')}",
+            "category_id": body.get("category_id"),
+            "amount"     : float(body.get("amount", 0)),
+            "month"      : body.get("month"),
+            "note"       : body.get("note", ""),
+            "created_at" : datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+
+        data["entries"].append(entry)
+        save_financials_data(data)
+        return JSONResponse(content={"status": "success", "entry": entry})
+
+    except Exception as e:
+        import traceback
+        return JSONResponse(content={"status": "error", "detail": traceback.format_exc()})
+
+
+@app.delete("/api/financials/entry/{entry_id}")
+async def delete_entry(entry_id: str):
+    try:
+        data = load_financials()
+        data["entries"] = [e for e in data["entries"] if e["id"] != entry_id]
+        save_financials_data(data)
+        return JSONResponse(content={"status": "success"})
+    except Exception as e:
+        import traceback
+        return JSONResponse(content={"status": "error", "detail": traceback.format_exc()})
+
+
+@app.post("/api/financials/category")
+async def add_category(request: Request):
+    try:
+        body = await request.json()
+        data = load_financials()
+
+        colors = ["#3b82f6","#f97316","#a78bfa","#22c55e","#f43f5e","#eab308","#06b6d4","#ec4899"]
+        color  = colors[len(data["categories"]) % len(colors)]
+
+        category = {
+            "id"   : f"cat_{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            "name" : body.get("name", "New Category"),
+            "color": body.get("color", color)
+        }
+
+        data["categories"].append(category)
+        save_financials_data(data)
+        return JSONResponse(content={"status": "success", "category": category})
+
+    except Exception as e:
+        import traceback
+        return JSONResponse(content={"status": "error", "detail": traceback.format_exc()})
+
+
+@app.put("/api/financials/category/{cat_id}")
+async def update_category(cat_id: str, request: Request):
+    try:
+        body = await request.json()
+        data = load_financials()
+
+        for cat in data["categories"]:
+            if cat["id"] == cat_id:
+                cat["name"]  = body.get("name",  cat["name"])
+                cat["color"] = body.get("color", cat["color"])
+                break
+
+        save_financials_data(data)
+        return JSONResponse(content={"status": "success"})
+
+    except Exception as e:
+        import traceback
+        return JSONResponse(content={"status": "error", "detail": traceback.format_exc()})
+
+
+@app.delete("/api/financials/category/{cat_id}")
+async def delete_category(cat_id: str):
+    try:
+        data = load_financials()
+        data["categories"] = [c for c in data["categories"] if c["id"] != cat_id]
+        data["entries"]    = [e for e in data["entries"] if e["category_id"] != cat_id]
+        save_financials_data(data)
+        return JSONResponse(content={"status": "success"})
+    except Exception as e:
+        import traceback
+        return JSONResponse(content={"status": "error", "detail": traceback.format_exc()})
+
+
+@app.get("/api/financials/roi")
+async def get_roi():
+    try:
+        fin      = load_financials()
+        analytics = load_json("data/analytics_brief.json")
+
+        total_spend = sum(e["amount"] for e in fin["entries"])
+
+        if analytics:
+            stats        = analytics.get("channel_stats", {})
+            period       = analytics.get("period_stats", {})
+            subscribers  = stats.get("subscribers", 0)
+            total_views  = stats.get("total_views", 0)
+            watch_hours  = period.get("last_30_days", {}).get("watch_hours", 0)
+        else:
+            subscribers = total_views = watch_hours = 0
+
+        cost_per_sub       = round(total_spend / subscribers, 2)       if subscribers  > 0 else 0
+        cost_per_1k_views  = round((total_spend / total_views) * 1000, 2) if total_views > 0 else 0
+        cost_per_watch_hr  = round(total_spend / watch_hours, 2)       if watch_hours  > 0 else 0
+        projected_revenue  = round(total_views * 3 / 1000, 2)
+
+        return JSONResponse(content={
+            "total_spend"      : round(total_spend, 2),
+            "subscribers"      : subscribers,
+            "total_views"      : total_views,
+            "watch_hours"      : watch_hours,
+            "cost_per_sub"     : cost_per_sub,
+            "cost_per_1k_views": cost_per_1k_views,
+            "cost_per_watch_hr": cost_per_watch_hr,
+            "projected_revenue": projected_revenue,
+            "roi_pct"          : round((projected_revenue / total_spend) * 100, 1) if total_spend > 0 else 0
+        })
+
+    except Exception as e:
+        import traceback
+        return JSONResponse(content={"error": traceback.format_exc()})
+
+
+# ── Chat Endpoints ────────────────────────────────────────────────────────────
 
 @app.post("/api/chat/agent1")
 async def chat_agent1(request: Request):

@@ -496,9 +496,313 @@ function exportPDF() {
     window.print();
 }
 
+// ── Financials ────────────────────────────────────────────────────────────────
+
+let finData        = { categories: [], entries: [] };
+let finChartMonth  = null;
+let finChartCat    = null;
+
+const FIXED_COSTS = [
+    { name: "Editor Salary", amount: 65.00 },
+    { name: "Riverside",     amount: 29.00 },
+    { name: "CapCut",        amount: 21.99 },
+    { name: "Canva",         amount: 13.00 }
+];
+
+async function loadFinancials() {
+    try {
+        const res = await fetch('/api/financials');
+        finData   = await res.json();
+        renderFinancials();
+        loadROI();
+    } catch (e) {
+        console.error('Could not load financials', e);
+    }
+}
+
+async function loadROI() {
+    try {
+        const res  = await fetch('/api/financials/roi');
+        const data = await res.json();
+
+        document.getElementById('roi-total-spend').textContent  = `£${data.total_spend.toFixed(2)}`;
+        document.getElementById('roi-cost-per-sub').textContent = `£${data.cost_per_sub.toFixed(2)}`;
+        document.getElementById('roi-cost-per-1k').textContent  = `£${data.cost_per_1k_views.toFixed(2)}`;
+        document.getElementById('roi-cost-per-hr').textContent  = `£${data.cost_per_watch_hr.toFixed(2)}`;
+        document.getElementById('roi-projected').textContent    = `£${data.projected_revenue.toFixed(2)}`;
+        document.getElementById('roi-pct').textContent          = `${data.roi_pct}%`;
+    } catch (e) {
+        console.error('Could not load ROI', e);
+    }
+}
+
+function renderFinancials() {
+    renderCategoryDropdown();
+    renderCategoryManager();
+    renderEntriesTable();
+    renderFinCharts();
+}
+
+function renderCategoryDropdown() {
+    const sel = document.getElementById('fin-category');
+    if (!sel) return;
+    sel.innerHTML = finData.categories.map(c =>
+        `<option value="${c.id}">${c.name}</option>`
+    ).join('');
+}
+
+function renderCategoryManager() {
+    const container = document.getElementById('fin-cats');
+    if (!container) return;
+    container.innerHTML = finData.categories.map(c => `
+        <div class="fin-cat-item">
+            <div class="fin-cat-dot" style="background:${c.color}"></div>
+            <input class="fin-cat-name" value="${c.name}"
+                   onblur="updateCategory('${c.id}', this.value, '${c.color}')">
+            <button class="fin-cat-delete" onclick="deleteCategory('${c.id}')">✕</button>
+        </div>`
+    ).join('');
+}
+
+function renderEntriesTable() {
+    const tbody = document.getElementById('fin-entries-table');
+    if (!tbody) return;
+
+    const catMap = {};
+    finData.categories.forEach(c => catMap[c.id] = c);
+
+    const sorted = [...finData.entries].sort((a, b) => b.month.localeCompare(a.month));
+
+    if (!sorted.length) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#64748b;padding:24px">No expenses logged yet</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = sorted.map(e => {
+        const cat = catMap[e.category_id] || { name: 'Unknown', color: '#64748b' };
+        return `
+            <tr>
+                <td>${e.month}</td>
+                <td>
+                    <span style="display:inline-flex;align-items:center;gap:6px">
+                        <span style="width:8px;height:8px;border-radius:50%;background:${cat.color};display:inline-block"></span>
+                        ${cat.name}
+                    </span>
+                </td>
+                <td style="color:#22c55e;font-weight:600">£${e.amount.toFixed(2)}</td>
+                <td style="color:#64748b">${e.note || '—'}</td>
+                <td style="color:#64748b;font-size:11px">${e.created_at?.split(' ')[0] || ''}</td>
+                <td>
+                    <button onclick="deleteEntry('${e.id}')"
+                            style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:13px">
+                        🗑 Delete
+                    </button>
+                </td>
+            </tr>`;
+    }).join('');
+}
+
+function renderFinCharts() {
+    // Monthly chart
+    const monthlyMap = {};
+    finData.entries.forEach(e => {
+        monthlyMap[e.month] = (monthlyMap[e.month] || 0) + e.amount;
+    });
+
+    const months = Object.keys(monthlyMap).sort();
+    const monthAmounts = months.map(m => +monthlyMap[m].toFixed(2));
+
+    if (finChartMonth) finChartMonth.destroy();
+    const ctxM = document.getElementById('fin-chart-monthly');
+    if (ctxM && months.length) {
+        finChartMonth = new Chart(ctxM, {
+            type: 'bar',
+            data: {
+                labels: months,
+                datasets: [{
+                    label: 'Monthly Spend (£)',
+                    data: monthAmounts,
+                    backgroundColor: 'rgba(96,165,250,0.6)',
+                    borderColor: '#3b82f6',
+                    borderWidth: 1,
+                    borderRadius: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: '#64748b' }, grid: { color: '#1e2235' } },
+                    y: { ticks: { color: '#64748b', callback: v => '£' + v }, grid: { color: '#1e2235' } }
+                }
+            }
+        });
+    }
+
+    // Category chart
+    const catMap = {};
+    finData.categories.forEach(c => catMap[c.id] = c);
+
+    const catTotals = {};
+    finData.entries.forEach(e => {
+        const name = catMap[e.category_id]?.name || 'Other';
+        catTotals[name] = (catTotals[name] || 0) + e.amount;
+    });
+
+    const catNames   = Object.keys(catTotals);
+    const catAmounts = catNames.map(n => +catTotals[n].toFixed(2));
+    const catColors  = finData.categories.map(c => c.color);
+
+    if (finChartCat) finChartCat.destroy();
+    const ctxC = document.getElementById('fin-chart-category');
+    if (ctxC && catNames.length) {
+        finChartCat = new Chart(ctxC, {
+            type: 'doughnut',
+            data: {
+                labels: catNames,
+                datasets: [{
+                    data: catAmounts,
+                    backgroundColor: catColors,
+                    borderColor: '#1a1d27',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { color: '#94a3b8', font: { size: 11 } }
+                    }
+                }
+            }
+        });
+    }
+}
+
+async function addExpense() {
+    const category_id = document.getElementById('fin-category').value;
+    const amount      = parseFloat(document.getElementById('fin-amount').value);
+    const month       = document.getElementById('fin-month').value;
+    const note        = document.getElementById('fin-note').value;
+
+    if (!category_id || !amount || !month) {
+        alert('Please fill in Category, Amount and Month');
+        return;
+    }
+
+    try {
+        const res  = await fetch('/api/financials/entry', {
+            method : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body   : JSON.stringify({ category_id, amount, month, note })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            document.getElementById('fin-amount').value = '';
+            document.getElementById('fin-note').value   = '';
+            await loadFinancials();
+        }
+    } catch (e) {
+        alert('Failed to add expense: ' + e.message);
+    }
+}
+
+async function quickAddMonth() {
+    const month = document.getElementById('fin-quick-month').value;
+    if (!month) {
+        alert('Please select a month');
+        return;
+    }
+
+    const catMap = {};
+    finData.categories.forEach(c => catMap[c.name] = c.id);
+
+    for (const cost of FIXED_COSTS) {
+        const category_id = catMap[cost.name];
+        if (!category_id) continue;
+
+        await fetch('/api/financials/entry', {
+            method : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body   : JSON.stringify({
+                category_id,
+                amount: cost.amount,
+                month,
+                note: 'Monthly fixed cost'
+            })
+        });
+    }
+
+    await loadFinancials();
+    alert(`✅ Logged all monthly expenses for ${month}!`);
+}
+
+async function deleteEntry(entryId) {
+    if (!confirm('Delete this expense?')) return;
+    try {
+        await fetch(`/api/financials/entry/${entryId}`, { method: 'DELETE' });
+        await loadFinancials();
+    } catch (e) {
+        alert('Failed to delete');
+    }
+}
+
+async function addCategory() {
+    const name = document.getElementById('fin-new-cat-name').value.trim();
+    if (!name) { alert('Enter a category name'); return; }
+
+    try {
+        const res  = await fetch('/api/financials/category', {
+            method : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body   : JSON.stringify({ name })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            document.getElementById('fin-new-cat-name').value = '';
+            await loadFinancials();
+        }
+    } catch (e) {
+        alert('Failed to add category');
+    }
+}
+
+async function updateCategory(catId, name, color) {
+    try {
+        await fetch(`/api/financials/category/${catId}`, {
+            method : 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body   : JSON.stringify({ name, color })
+        });
+        await loadFinancials();
+    } catch (e) {
+        console.error('Failed to update category', e);
+    }
+}
+
+async function deleteCategory(catId) {
+    if (!confirm('Delete this category and all its expenses?')) return;
+    try {
+        await fetch(`/api/financials/category/${catId}`, { method: 'DELETE' });
+        await loadFinancials();
+    } catch (e) {
+        alert('Failed to delete category');
+    }
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
     setDefaultDates();
     loadBenchmarks();
+    loadFinancials();
+
+    // Set default month fields to current month
+    const now       = new Date();
+    const monthStr  = now.toISOString().slice(0, 7);
+    const mField    = document.getElementById('fin-month');
+    const qmField   = document.getElementById('fin-quick-month');
+    if (mField)  mField.value  = monthStr;
+    if (qmField) qmField.value = monthStr;
 });
