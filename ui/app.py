@@ -521,11 +521,13 @@ async def get_roi():
         total_spend = sum(e["amount"] for e in fin["entries"])
 
         if analytics:
-            stats        = analytics.get("channel_stats", {})
-            period       = analytics.get("period_stats", {})
-            subscribers  = stats.get("subscribers", 0)
-            total_views  = stats.get("total_views", 0)
-            watch_hours  = period.get("last_30_days", {}).get("watch_hours", 0)
+            stats = analytics.get("channel_stats", {})
+            period = analytics.get("period_stats", {})
+            subscribers = stats.get("subscribers", 0)
+            total_views = stats.get("total_views", 0)
+            # Use 30-day watch hours × estimated months active as proxy for total
+            monthly_wh = period.get("last_30_days", {}).get("watch_hours", 0)
+            watch_hours = monthly_wh  # use monthly for cost per watch hr
         else:
             subscribers = total_views = watch_hours = 0
 
